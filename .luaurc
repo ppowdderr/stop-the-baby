@@ -1,0 +1,5 @@
+{
+  "languageMode": "nonstrict",
+  "lint": { "*": true },
+  "aliases": { "Shared": "src/shared" }
+}
