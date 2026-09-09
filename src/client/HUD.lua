@@ -327,7 +327,8 @@ readyBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Briefing card: tonight's Baby (powers -> tell -> counter), variant, boss, chores -------------
-local brief = UI.frame(screen, "Briefing", UDim2.fromOffset(400, 250), UDim2.new(0.5, 180, 0.5, -200))
+local BRIEF_W, BRIEF_ROW = 440, 76
+local brief = UI.frame(screen, "Briefing", UDim2.fromOffset(BRIEF_W, 250), UDim2.new(0.5, 180, 0.5, -200))
 brief.Visible = false
 UI.corner(brief, 18)
 local briefStroke = UI.stroke(brief, UI.Colors.Accent, 3)
@@ -367,7 +368,7 @@ local function showBriefing(plan: PlanDto?, chores: number)
 	local n = 0
 	for _, p in (plan.powers or {}) :: { PowerDto } do
 		n += 1
-		local row = UI.frame(briefList, "P" .. n, UDim2.new(1, 0, 0, 52), nil, UI.Colors.PanelLight)
+		local row = UI.frame(briefList, "P" .. n, UDim2.new(1, 0, 0, BRIEF_ROW - 6), nil, UI.Colors.PanelLight)
 		row.LayoutOrder = n
 		UI.corner(row, 10)
 		UI.padding(row, 6)
@@ -395,16 +396,19 @@ local function showBriefing(plan: PlanDto?, chores: number)
 			row,
 			"Tell",
 			("👀 %s → %s"):format(p.tell or "", p.effect or ""),
-			UDim2.new(1, 0, 0, 20),
+			UDim2.new(1, 0, 0, 36),
 			UDim2.fromOffset(0, 22),
 			13,
 			UI.Colors.Sub
 		)
 		tell.TextXAlignment = Enum.TextXAlignment.Left
+		tell.TextYAlignment = Enum.TextYAlignment.Top
+		tell.TextWrapped = true
 		tell.TextTruncate = Enum.TextTruncate.AtEnd
 	end
-	brief.Size = UDim2.fromOffset(400, 110 + n * 58)
-	brief.Position = UDim2.new(0.5, 180, 0.5, -(110 + n * 58) / 2)
+	local h = 110 + n * BRIEF_ROW
+	brief.Size = UDim2.fromOffset(BRIEF_W, h)
+	brief.Position = UDim2.new(0.5, 180, 0.5, -h / 2)
 	briefFoot.Text = if isBoss
 		then ("Calm Bar x%d. Mom's on a fixed clock — crying makes her drive faster."):format(plan.bossSegments or 3)
 		else ("%d chore%s tonight. Chores are the clock; the Baby is the problem."):format(

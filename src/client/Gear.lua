@@ -176,7 +176,7 @@ openBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
-panel = UI.frame(screen, "Panel", UDim2.fromOffset(560, 420), UDim2.new(0.5, -280, 0.5, -210))
+panel = UI.frame(screen, "Panel", UDim2.fromOffset(640, 440), UDim2.new(0.5, -320, 0.5, -220))
 panel.Visible = false
 UI.corner(panel, 18)
 UI.stroke(panel, UI.Colors.Green, 3)
@@ -209,6 +209,7 @@ for i = 1, SLOTS do
 	loadBtns[i] = b
 end
 local loadHint = UI.label(panel, "Hint", "", UDim2.new(1, 0, 0, 20), UDim2.fromOffset(0, 114), 14, UI.Colors.Sub)
+loadHint.TextTruncate = Enum.TextTruncate.AtEnd
 
 local scroll = Instance.new("ScrollingFrame")
 scroll.Name = "List"
@@ -325,18 +326,18 @@ refreshPanel = function()
 		if not def then
 			continue
 		end
-		local row = UI.frame(scroll, s.id .. s.tier, UDim2.new(1, -8, 0, 64), nil, UI.Colors.PanelLight)
+		local row = UI.frame(scroll, s.id .. s.tier, UDim2.new(1, -8, 0, 84), nil, UI.Colors.PanelLight)
 		row.LayoutOrder = order
 		UI.corner(row, 10)
 		UI.stroke(row, tierColor(s.tier), 2)
 		UI.padding(row, 6)
-		local icon = UI.label(row, "Icon", def.emoji, UDim2.fromOffset(44, 52), nil, 30)
+		local icon = UI.label(row, "Icon", def.emoji, UDim2.fromOffset(44, 72), nil, 30)
 		icon.TextScaled = false
 		local name = UI.label(
 			row,
 			"Name",
 			("%s %s  x%d"):format(s.tier, def.name, #s.recs),
-			UDim2.new(1, -260, 0, 22),
+			UDim2.new(1, -240, 0, 22),
 			UDim2.fromOffset(50, 0),
 			17,
 			tierColor(s.tier)
@@ -355,7 +356,7 @@ refreshPanel = function()
 					)
 					else ("Passive · %d%s · "):format(power, def.powerLabel)
 			) .. def.desc,
-			UDim2.new(1, -260, 0, 30),
+			UDim2.new(1, -240, 0, 50),
 			UDim2.fromOffset(50, 22),
 			12,
 			UI.Colors.Sub
@@ -370,8 +371,8 @@ refreshPanel = function()
 			row,
 			"Equip",
 			if free then "EQUIP" elseif eq then "EQUIPPED" else "",
-			UDim2.fromOffset(96, 36),
-			UDim2.new(1, -204, 0.5, -18),
+			UDim2.fromOffset(88, 36),
+			UDim2.new(1, -184, 0.5, -18),
 			if free then UI.Colors.Green else UI.Colors.Panel
 		)
 		equipBtn.TextSize = 15
@@ -386,8 +387,8 @@ refreshPanel = function()
 			row,
 			"Fuse",
 			("FUSE %d→1"):format(GearCatalog.FuseCount),
-			UDim2.fromOffset(96, 36),
-			UDim2.new(1, -100, 0.5, -18),
+			UDim2.fromOffset(88, 36),
+			UDim2.new(1, -92, 0.5, -18),
 			if canFuse then UI.Colors.Yellow else UI.Colors.Panel
 		)
 		fuseBtn.TextSize = 15
