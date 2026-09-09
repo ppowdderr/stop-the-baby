@@ -97,14 +97,19 @@ function InventoryService.grant(
 end
 
 -- Rolls a random item. legendaryBonus in % points; lucky players get a reroll on Common.
+-- minRarity floors the roll (used for the guaranteed first-night pull).
 function InventoryService.rollItem(
 	player: Player,
 	legendaryBonus: number?,
-	kind: ToyCatalog.ItemKind?
+	kind: ToyCatalog.ItemKind?,
+	minRarity: Rarity.RarityName?
 ): DataService.ItemRecord?
 	local rarity = Rarity.roll(rng, legendaryBonus)
 	if rarity == "Common" and EconomyService.hasLuck(player) then
 		rarity = Rarity.roll(rng, legendaryBonus)
+	end
+	if minRarity and Rarity.index(rarity) < Rarity.index(minRarity) then
+		rarity = minRarity
 	end
 	local pool = ToyCatalog.itemsOfRarity(rarity, kind)
 	if #pool == 0 then

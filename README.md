@@ -49,7 +49,6 @@ src/client/
 
 ## Before publishing
 
-1. Create the developer products / gamepasses in Creator Hub and fill ids in `src/shared/Config.lua` (`Config.Products`), and set `Config.GroupId`.
-2. Replace placeholder sound ids in `BabyRig.lua` and face decals in `BabyRig.setMoodFace`.
-3. Set max players to 4 in Game Settings and enable Studio API access for DataStores.
-4. Publish as `STOP THE BABY 👶 [BETA]` and follow the launch plan in the spec.
+See [docs/PUBLISHING.md](docs/PUBLISHING.md) — Game Settings (max players 4, API access), where each
+Creator Hub id goes in `src/shared/Config.lua`, group/codes, asset audit, and the private → public flow.
+Unpublished builds run fine with everything left at `0`.

@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
+local Sounds = require(Shared:WaitForChild("Sounds"))
 local UI = require(script.Parent.UI)
 
 local Cutscenes = {}
@@ -129,9 +130,10 @@ handlers.mom_check_fail = function(data)
 	if car then
 		local light = car:FindFirstChild("Headlight") :: SpotLight?
 		if light then
-			light.Brightness = 20
+			light.Brightness = 6
 		end
 		task.spawn(focusCamera, CFrame.lookAt(Vector3.new(0, 12, 55), car.Position), 3)
+		Sounds.play("DoorSlam", car)
 	end
 	say("MOM", "I'm home—", 1.2)
 	task.spawn(focusCamera, babyCF(), 4)
@@ -173,7 +175,7 @@ Net.event("Panic").OnClientEvent:Connect(function(active: boolean)
 	local car = momCar()
 	local light = car and car:FindFirstChild("Headlight") :: SpotLight?
 	if light then
-		light.Brightness = if active then 30 else 0
+		light.Brightness = if active then 8 else 0
 	end
 	TweenService:Create(
 		Lighting,
@@ -181,6 +183,9 @@ Net.event("Panic").OnClientEvent:Connect(function(active: boolean)
 		{ OutdoorAmbient = if active then Color3.fromRGB(140, 40, 50) else baseAmbient }
 	):Play()
 	if car then
+		if active then
+			Sounds.play("CarHorn", car)
+		end
 		local target = if active then CFrame.new(40, 3.2, 95) else CFrame.new(40, 3.2, 150)
 		TweenService:Create(car, TweenInfo.new(if active then 3 else 1), { CFrame = target }):Play()
 	end

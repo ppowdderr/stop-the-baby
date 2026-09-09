@@ -113,6 +113,8 @@ local openBtn =
 	UI.button(screen, "Open", "🧸 TOYS", UDim2.fromOffset(120, 44), UDim2.new(1, -132, 0, 60), UI.Colors.Blue)
 local shopBtn =
 	UI.button(screen, "Shop", "🎁 SHOP", UDim2.fromOffset(120, 44), UDim2.new(1, -132, 0, 112), UI.Colors.Accent)
+-- Robux shop only exists once real ids are filled in Config.Products (unpublished builds hide it).
+shopBtn.Visible = Config.productsConfigured()
 
 local panel = UI.frame(screen, "Panel", UDim2.fromOffset(560, 400), UDim2.new(0.5, -280, 0.5, -200))
 panel.Visible = false
@@ -315,13 +317,14 @@ for i, e in shopEntries do
 	b.LayoutOrder = i
 	b.TextSize = 16
 	b.TextScaled = false
+	b.Visible = (e.kind == "product" and (def.productId or 0) > 0) or (e.kind == "pass" and (def.gamepassId or 0) > 0)
 	b.MouseButton1Click:Connect(function()
 		if e.kind == "product" and def.productId ~= 0 then
 			MarketplaceService:PromptProductPurchase(player, def.productId)
 		elseif e.kind == "pass" and def.gamepassId ~= 0 then
 			MarketplaceService:PromptGamePassPurchase(player, def.gamepassId)
 		else
-			HUD.toast("Product not configured yet (set ids in Config.Products).", "error")
+			HUD.toast("Coming soon!", "info")
 		end
 	end)
 end

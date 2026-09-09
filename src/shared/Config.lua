@@ -18,9 +18,11 @@ Config.ResultsTime = 10
 -- Mood
 Config.Mood = {
 	Stages = { "Happy", "Grumpy", "Fussy", "Crying" },
-	BaseDecayInterval = 45, -- seconds per stage at Night 1
+	BaseDecayInterval = 55, -- seconds per stage at Night 1
 	MinDecayInterval = 20,
 	DecayIntervalPerNight = 0.7, -- shrinks per night
+	WantDecayMultiplier = 0.75, -- decay speed-up while an unmet want is active
+	OpeningGrace = 15, -- no mood decay for the first seconds of a night
 	CryToPanicSeconds = 20, -- crying this long summons Mom
 	PanicSeconds = 30,
 	PanicSpeedMultiplier = 2.0,
@@ -87,7 +89,16 @@ Config.Codes = {
 	MOMISHOME = { type = "Coins", amount = 500 },
 }
 
-Config.GroupId = 0 -- set to your Roblox group id for the daily Grandma's Gift
+-- First session (see docs/PUBLISHING.md for the full onboarding flow)
+Config.Onboarding = {
+	FirstPullMinRarity = "Rare", -- a player's first night always pays out at least this rarity
+	CoachEnabled = true, -- step-by-step coach shown to players with 0 nights played
+	LikePromptAfterNights = 1, -- show the Like/Favorite + group card after this many nights survived
+}
+
+-- Publishing ids. Everything below is 0 (disabled) until the experience exists in Creator Hub;
+-- fill them in from Creator Hub > your experience > Monetization / Associated Items.
+Config.GroupId = 0 -- Roblox group id for the daily Grandma's Gift (0 = feature hidden)
 
 Config.Products = {
 	-- Developer products / gamepasses: fill ids after creating them in Creator Hub.
@@ -97,5 +108,15 @@ Config.Products = {
 	ToyBox10 = { productId = 0, price = 149 },
 	NurseryShelf = { productId = 0, price = 99 },
 }
+
+-- Returns true once real ids have been filled in (used to hide the shop's Robux buttons in unpublished builds).
+function Config.productsConfigured(): boolean
+	for _, p in Config.Products :: { [string]: { productId: number?, gamepassId: number? } } do
+		if (p.productId or 0) > 0 or (p.gamepassId or 0) > 0 then
+			return true
+		end
+	end
+	return false
+end
 
 return Config

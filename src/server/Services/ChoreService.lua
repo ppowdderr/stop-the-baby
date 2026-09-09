@@ -207,7 +207,7 @@ function ChoreService.start(canBedtime: () -> boolean)
 	-- Progress tick
 	task.spawn(function()
 		while true do
-			task.wait(0.25)
+			local dt = task.wait(0.25)
 			if not running then
 				continue
 			end
@@ -221,7 +221,7 @@ function ChoreService.start(canBedtime: () -> boolean)
 						changed = true
 						continue
 					end
-					c.progress = math.min(1, c.progress + 0.25 / c.def.holdTime)
+					c.progress = math.min(1, c.progress + dt / c.def.holdTime)
 					changed = true
 					if c.progress >= 1 then
 						c.done = true

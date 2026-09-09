@@ -10,5 +10,7 @@ require(script.HUD)
 require(script.Inventory)
 require(script.Interaction)
 require(script.Cutscenes)
+require(script.BabyAnimator)
+require(script.Tutorial)
 
 print("[StopTheBaby] client ready")

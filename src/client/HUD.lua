@@ -1,11 +1,13 @@
 --!strict
 -- Night counter + timer, Baby mood meter, chore list, toasts, lobby panel, results panel, panic overlay.
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Net = require(Shared:WaitForChild("Net"))
 local Rarity = require(Shared:WaitForChild("Rarity"))
+local Sounds = require(Shared:WaitForChild("Sounds"))
 local UI = require(script.Parent.UI)
 
 local HUD = {}
@@ -93,10 +95,17 @@ local function ensureRow(id: string, order: number): Frame
 	return row
 end
 
+local doneChores: { [string]: boolean } = {}
 Net.event("ChoreList").OnClientEvent:Connect(function(chores)
 	local seen = {}
 	for i, c in chores do
 		seen[c.id] = true
+		if c.done and not doneChores[c.id] then
+			Sounds.play("Ding")
+		elseif c.messedUp and doneChores[c.id] then
+			Sounds.play("SlideWhistle")
+		end
+		doneChores[c.id] = c.done == true
 		local row = ensureRow(c.id, i)
 		local name = row:FindFirstChild("Name") :: TextLabel
 		local fill = (row:FindFirstChild("Bar") :: Frame):FindFirstChild("Fill") :: Frame
@@ -111,6 +120,7 @@ Net.event("ChoreList").OnClientEvent:Connect(function(chores)
 		if not seen[id] then
 			row:Destroy()
 			choreRows[id] = nil
+			doneChores[id] = nil
 		end
 	end
 end)
@@ -137,6 +147,13 @@ function HUD.toast(text: string, kind: string?)
 	UI.corner(t, 10)
 	UI.stroke(t)
 	UI.pop(t)
+	if kind == "coins" or kind == "star" then
+		Sounds.play("Ding", nil, 0.5)
+	elseif kind == "error" or kind == "panic" then
+		Sounds.play("RecordScratch", nil, 0.6)
+	elseif kind and Rarity.Colors[kind :: any] then
+		Sounds.play("DeskBell")
+	end
 	task.delay(4, function()
 		UI.tween(t, { TextTransparency = 1, BackgroundTransparency = 1 }, 0.4).Completed:Wait()
 		t:Destroy()
@@ -176,15 +193,75 @@ readyBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Results panel -------------------------------------------------------------------------
-local results = UI.frame(screen, "Results", UDim2.fromOffset(380, 220), UDim2.new(0.5, -190, 0.5, -110))
+local results = UI.frame(screen, "Results", UDim2.fromOffset(420, 330), UDim2.new(0.5, -210, 0.5, -165))
 results.Visible = false
 UI.corner(results, 18)
 UI.stroke(results, UI.Colors.Yellow, 3)
 UI.padding(results, 12)
 local resTitle = UI.label(results, "Title", "", UDim2.new(1, 0, 0, 48))
 local resStars = UI.label(results, "Stars", "", UDim2.new(1, 0, 0, 44), UDim2.fromOffset(0, 52), nil, UI.Colors.Yellow)
-local resBody = UI.label(results, "Body", "", UDim2.new(1, 0, 0, 80), UDim2.fromOffset(0, 104), 20, UI.Colors.Sub)
+local resBody = UI.label(results, "Body", "", UDim2.new(1, 0, 0, 52), UDim2.fromOffset(0, 100), 20, UI.Colors.Sub)
 resBody.TextWrapped = true
+-- New toy card (rarity-colored) revealed a beat after the panel
+local resToy = UI.frame(results, "Toy", UDim2.new(1, 0, 0, 78), UDim2.fromOffset(0, 156), UI.Colors.PanelLight)
+UI.corner(resToy, 14)
+local resToyStroke = UI.stroke(resToy, UI.Colors.Blue, 3)
+local resToyTag = UI.label(resToy, "Tag", "NEW TOY!", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 4), 16, UI.Colors.Sub)
+local resToyName = UI.label(resToy, "Name", "", UDim2.new(1, 0, 0, 48), UDim2.fromOffset(0, 26), 26)
+local resTip = UI.label(results, "Tip", "", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 240), 17, UI.Colors.Sub)
+resTip.TextWrapped = true
+
+local function revealToy(reward)
+	resToy.Visible = false
+	if not reward then
+		return
+	end
+	local color = Rarity.Colors[reward.rarity :: any] or UI.Colors.Blue
+	resToyStroke.Color = color
+	resToyName.TextColor3 = color
+	resToyName.Text = ("%s %s"):format(reward.emoji or "", reward.name or "")
+	resToyTag.Text = if reward.mutation
+		then ("NEW %s TOY — %s MUTATION!"):format(string.upper(reward.rarity), string.upper(reward.mutation))
+		else ("NEW %s TOY!"):format(string.upper(reward.rarity))
+	task.delay(0.9, function()
+		if results.Visible then
+			resToy.Visible = true
+			UI.pop(resToy)
+			Sounds.play(if Rarity.index(reward.rarity) >= Rarity.index("Epic") then "DeskBell" else "Ding")
+		end
+	end)
+end
+
+local failTips = {
+	crying = "Tip: when Baby cries, get close and press 1/2 to give a toy — or hold E to CARRY Baby to the crib.",
+	chores = "Tip: finish every chore on the list, then put Baby to bed before Mom's car pulls in.",
+}
+
+-- Like / Favorite + group card (shown once after the first survived night) ---------------------
+local likeCard = UI.frame(screen, "LikeCard", UDim2.fromOffset(340, 120), UDim2.new(0.5, -170, 1, -230))
+likeCard.Visible = false
+UI.corner(likeCard, 16)
+UI.stroke(likeCard, UI.Colors.Accent, 3)
+UI.padding(likeCard, 10)
+local likeText = UI.label(likeCard, "Text", "", UDim2.new(1, 0, 0, 70), nil, 18)
+likeText.TextWrapped = true
+local likeOk =
+	UI.button(likeCard, "Ok", "OKAY!", UDim2.fromOffset(140, 34), UDim2.new(0.5, -70, 1, -36), UI.Colors.Green)
+likeOk.MouseButton1Click:Connect(function()
+	likeCard.Visible = false
+end)
+local likeShown = false
+
+local function showLikeCard()
+	if likeShown then
+		return
+	end
+	likeShown = true
+	likeText.Text = "Having fun? 👍 Like & ⭐ Favorite Stop the Baby so your friends can find it!"
+		.. (if Config.GroupId ~= 0 then "\nJoin our group for Grandma's daily gift 🎁" else "")
+	likeCard.Visible = true
+	UI.pop(likeCard)
+end
 
 -- Panic overlay -----------------------------------------------------------------------------
 local panic = UI.frame(screen, "Panic", UDim2.fromScale(1, 1), UDim2.new(), UI.Colors.Red, 1)
@@ -210,8 +287,17 @@ Net.event("Panic").OnClientEvent:Connect(function(active: boolean, seconds: numb
 	panicEndsAt = workspace:GetServerTimeNow() + seconds
 	if active then
 		UI.pop(panicText)
+		Sounds.play("CarHorn")
+		task.delay(0.7, function()
+			if panic.Visible then
+				Sounds.play("CarHorn", nil, 0.8)
+			end
+		end)
 	end
 end)
+
+-- Lobby music -----------------------------------------------------------------------------------
+local lobbyMusic = Sounds.loop("MusicBox", SoundService)
 
 -- Round state ---------------------------------------------------------------------------------
 local endsAt = 0
@@ -225,16 +311,24 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 	chorePanel.Visible = newState == "Night" or newState == "Panic"
 	moodPanel.Visible = newState ~= "Lobby" and newState ~= "Results"
 	if newState == "Lobby" then
+		if not lobbyMusic.IsPlaying then
+			lobbyMusic:Play()
+		end
+	else
+		lobbyMusic:Stop()
+	end
+	if newState == "Lobby" then
 		lobbyNextNight = payload.nextNight or 1
 		selectedNight = lobbyNextNight
 		lobbyNight.Text = "Next: NIGHT " .. selectedNight
 		lobbyVotes.Text = ("%d/%d ready"):format(payload.votes or 0, payload.needed or 1)
 		readyBtn.Text = "READY!"
 		panic.Visible = false
-	elseif newState == "Night" or newState == "Panic" then
+	elseif newState == "Night" then
 		endsAt = payload.endsAt or 0
 	elseif newState == "Results" then
 		local stars = payload.stars or 0
+		Sounds.play(if payload.success then "DeskBell" else "DoorSlam")
 		resTitle.Text = if payload.success then "NIGHT SURVIVED! 🎉" else "MOM CAME HOME. 😬"
 		resTitle.TextColor3 = if payload.success then UI.Colors.Green else UI.Colors.Red
 		resStars.Text = string.rep("⭐", stars) .. string.rep("☆", 3 - stars)
@@ -243,7 +337,18 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 			payload.damage or 0,
 			if payload.finale then "\n🎂 NIGHT 99 — BIRTHDAY! REBIRTH UNLOCKED" else ""
 		)
+		revealToy(payload.reward)
+		if payload.success then
+			resTip.Text = if payload.firstNight
+				then "Every night you survive = a new toy. Rarer toys calm Baby faster. Night 2: Baby gets BIGGER."
+				else ("Next: Night %d — Baby grows and learns a new trick."):format((payload.night or 1) + 1)
+		else
+			resTip.Text = failTips[payload.reason or ""] or failTips.chores
+		end
 		UI.pop(results)
+		if payload.success and (payload.nightsPlayed or 0) >= Config.Onboarding.LikePromptAfterNights then
+			task.delay(Config.ResultsTime + 2, showLikeCard)
+		end
 	end
 end)
 
