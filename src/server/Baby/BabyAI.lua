@@ -9,17 +9,22 @@ local Config = require(Shared:WaitForChild("Config"))
 local Net = require(Shared:WaitForChild("Net"))
 local Signal = require(Shared:WaitForChild("Signal"))
 local NightTable = require(Shared:WaitForChild("NightTable"))
+local NightGen = require(Shared:WaitForChild("NightGen"))
 local ToyCatalog = require(Shared:WaitForChild("ToyCatalog"))
+local GearCatalog = require(Shared:WaitForChild("GearCatalog"))
 local BabyRig = require(script.Parent.BabyRig)
+local Powers = require(script.Parent.Powers)
 local ChoreService = require(script.Parent.Parent.Services.ChoreService)
 local InventoryService = require(script.Parent.Parent.Services.InventoryService)
 local EconomyService = require(script.Parent.Parent.Services.EconomyService)
 local DataService = require(script.Parent.Parent.Services.DataService)
+local GearService = require(script.Parent.Parent.Services.GearService)
 
 local BabyAI = {}
 BabyAI.MoodChanged = Signal.new() :: Signal.Signal<number, string>
 BabyAI.StartedCrying = Signal.new() :: Signal.Signal<()>
 BabyAI.StoppedCrying = Signal.new() :: Signal.Signal<()>
+BabyAI.BossBeaten = Signal.new() :: Signal.Signal<()>
 
 local rng = Random.new()
 
@@ -27,6 +32,16 @@ local model: Model? = nil
 local humanoid: Humanoid? = nil
 local root: BasePart? = nil
 local info: NightTable.NightInfo = NightTable.get(1)
+local plan: NightGen.Plan = NightGen.plan(1, 1)
+
+-- Power / gear / boss state
+local dazedUntil = 0
+local bubbledUntil = 0
+local bubblePart: BasePart? = nil
+local powerSpeed = 1
+local panicSpeed = 1
+local bossSegments = 0
+local bossTotal = 0
 
 local moodIndex = 1 -- 1 Happy .. 4 Crying
 local decayTimer = 0
@@ -145,6 +160,113 @@ end
 function BabyAI.isCarried(): boolean
 	return carriedBy ~= nil
 end
+function BabyAI.isDazed(): boolean
+	return os.clock() < dazedUntil
+end
+function BabyAI.plan(): NightGen.Plan
+	return plan
+end
+function BabyAI.bossSegmentsLeft(): number
+	return bossSegments
+end
+
+local function busy(): boolean
+	return carriedBy ~= nil or frozen or tucking or os.clock() < dazedUntil or os.clock() < bubbledUntil
+end
+
+local function applySpeed()
+	local h = humanoid
+	if h then
+		h.WalkSpeed = if os.clock() < bubbledUntil then 0 else info.walkSpeed * panicSpeed * powerSpeed
+	end
+end
+
+local function broadcastBoss()
+	if plan.isBoss then
+		Net.event("BossState"):FireAllClients(bossSegments, bossTotal, BabyAI.isDazed(), plan.title)
+	end
+end
+
+local function playersWithin(radius: number): { Player }
+	local r = root
+	local out = {}
+	if not r then
+		return out
+	end
+	for _, plr in Players:GetPlayers() do
+		local char = plr.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp and (hrp.Position - r.Position).Magnitude <= radius then
+			table.insert(out, plr)
+		end
+	end
+	return out
+end
+
+local function shake(center: Vector3, radius: number, strength: number)
+	for _, plr in Players:GetPlayers() do
+		local char = plr.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			local d = (hrp.Position - center).Magnitude
+			if d <= radius then
+				Net.event("Shake"):FireClient(plr, strength * (1 - d / radius * 0.6), 0.7)
+			end
+		end
+	end
+end
+
+-- Sends a babysitter flying; false when Ear Muffs (own or a teammate's shield) protected them.
+local function knockback(plr: Player, from: Vector3, strength: number): boolean
+	if carriers[plr] or Powers.isStuck(plr) then
+		return false
+	end
+	local char = plr.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hrp or not hum or hum.PlatformStand then
+		return false
+	end
+	if GearService.protected(plr) then
+		Net.event("Toast"):FireClient(plr, "🎧 Ear Muffs blocked it!", "info")
+		return false
+	end
+	local dir = hrp.Position - from
+	dir = Vector3.new(dir.X, 0, dir.Z)
+	if dir.Magnitude < 0.5 then
+		dir = hrp.CFrame.LookVector * -1
+	end
+	hum.PlatformStand = true
+	hrp:ApplyImpulse(dir.Unit * hrp.AssemblyMass * strength + Vector3.new(0, hrp.AssemblyMass * strength * 0.75, 0))
+	hrp:ApplyAngularImpulse(Vector3.new(rng:NextNumber(-1, 1), 0, rng:NextNumber(-1, 1)) * hrp.AssemblyMass * 20)
+	Net.event("Shake"):FireClient(plr, 1.4, 0.8)
+	task.delay(Config.Powers.KnockbackSeconds, function()
+		if hum.Parent and not Powers.isStuck(plr) then
+			hum.PlatformStand = false
+		end
+	end)
+	return true
+end
+
+local function setDazed(seconds: number)
+	dazedUntil = os.clock() + seconds
+	local h, r = humanoid, root
+	if h and r then
+		h:MoveTo(r.Position)
+	end
+	setBehavior("Dazed")
+	say("@_@", seconds)
+	if plan.isBoss then
+		toastAll("OPENING! Calm it NOW!", "info")
+		broadcastBoss()
+	end
+	task.delay(seconds, function()
+		if active and not busy() then
+			setBehavior("Idle")
+		end
+		broadcastBoss()
+	end)
+end
 
 -- Map helpers ------------------------------------------------------------------
 local function mapFolder(name: string): Folder?
@@ -213,7 +335,14 @@ local function moveTo(target: Vector3, timeout: number): boolean
 	local deadline = os.clock() + timeout
 	if ok and path.Status == Enum.PathStatus.Success then
 		for _, wp in path:GetWaypoints() do
-			if not active or carriedBy or tucking or (frozen and currentBehavior ~= "Sleepwalk") then
+			if
+				not active
+				or carriedBy
+				or tucking
+				or os.clock() < dazedUntil
+				or os.clock() < bubbledUntil
+				or (frozen and currentBehavior ~= "Sleepwalk")
+			then
 				return false
 			end
 			h:MoveTo(wp.Position)
@@ -233,13 +362,14 @@ local function moveTo(target: Vector3, timeout: number): boolean
 end
 
 -- Behaviors ----------------------------------------------------------------------
-local function knockProps()
+-- Knocks anchored props within reach; smashed furniture is where junk (coins/gear) comes from.
+local function knockProps(reachMult: number?)
 	local r = root
 	local props = mapFolder("Props")
 	if not r or not props then
 		return
 	end
-	local reach = 4 * info.scale
+	local reach = 4 * info.scale * (reachMult or 1)
 	for _, prop in props:GetChildren() do
 		if prop:IsA("BasePart") and (prop.Position - r.Position).Magnitude < reach and prop.Anchored then
 			prop.Anchored = false
@@ -247,6 +377,7 @@ local function knockProps()
 				(prop.Position - r.Position).Unit * prop.AssemblyMass * 40 + Vector3.new(0, prop.AssemblyMass * 30, 0)
 			)
 			prop:SetAttribute("Knocked", true)
+			GearService.onPropSmashed(prop.Position)
 		end
 	end
 end
@@ -466,7 +597,7 @@ end
 -- Main loops ----------------------------------------------------------------------
 local function behaviorLoop()
 	while active do
-		if carriedBy or frozen or tucking then
+		if busy() then
 			task.wait(0.5)
 			continue
 		end
@@ -495,7 +626,11 @@ local function moodLoop()
 			broadcastMood()
 			continue
 		end
-		decayTimer += dt
+		if os.clock() < dazedUntil or os.clock() < bubbledUntil then
+			broadcastMood()
+			continue
+		end
+		decayTimer += dt * GearService.moodDecayMultiplier()
 		local interval = info.decayInterval * (if want then Config.Mood.WantDecayMultiplier else 1)
 		if decayTimer >= interval then
 			setMood(moodIndex + 1)
@@ -541,8 +676,163 @@ function BabyAI.soothe(player: Player, stages: number, immunity: number, def: To
 	if NightTable.has(info, "Refuse") and rng:NextNumber() < 0.2 then
 		refuseNext = true
 	end
+	if def.kind == "Snack" and r then
+		task.delay(1.2, function()
+			if active and GearService.onSnackFed(r.Position) then
+				say("BURP!", 1.5)
+				fx("burp")
+			end
+		end)
+	end
+	BabyAI.calmHit(player)
 	broadcastMood()
 	return true
+end
+
+-- Boss Calm Bar: a soothe during an opening (dazed / bubbled) clears one segment.
+function BabyAI.calmHit(player: Player)
+	if not plan.isBoss or bossSegments <= 0 then
+		return
+	end
+	if not (os.clock() < dazedUntil or os.clock() < bubbledUntil) then
+		Net.event("Toast")
+			:FireClient(player, "Too worked up! Wait for an OPENING (after a slam, or Bubble Trap it).", "warn")
+		return
+	end
+	bossSegments -= 1
+	dazedUntil = 0
+	bubbledUntil = math.min(bubbledUntil, os.clock())
+	applySpeed()
+	clip("boss_segment")
+	if bossSegments <= 0 then
+		toastAll(("%s calmed %s!"):format(player.Name, plan.title), "Legendary")
+		broadcastBoss()
+		BabyAI.BossBeaten:Fire()
+		return
+	end
+	toastAll(("%s calmed a segment! %d to go — it's getting ANGRIER"):format(player.Name, bossSegments), "warn")
+	say("GRRRR", 2)
+	fx("tantrum")
+	-- Phase up: each cleared segment shortens the Baby's fuse.
+	info.decayInterval = math.max(Config.Mood.MinDecayInterval * 0.6, info.decayInterval * 0.8)
+	broadcastBoss()
+end
+
+-- Gear effects -------------------------------------------------------------------------------------
+local function inRange(player: Player, range: number): boolean
+	local r = root
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not r or not hrp then
+		return false
+	end
+	return (hrp.Position - r.Position).Magnitude <= range + info.scale * 2
+end
+
+local function popBubble()
+	local b = bubblePart
+	bubblePart = nil
+	if b then
+		b:Destroy()
+	end
+	local m = model
+	if m and m.Parent then
+		m:SetAttribute("Bubbled", false)
+	end
+	applySpeed()
+	if active and not busy() then
+		setBehavior("Idle")
+	end
+end
+
+local function bubbleTrap(player: Player, seconds: number): boolean
+	local r, h, m = root, humanoid, model
+	if not r or not h or not m or carriedBy then
+		return false
+	end
+	popBubble()
+	bubbledUntil = os.clock() + seconds
+	h:MoveTo(r.Position)
+	applySpeed()
+	local b = Instance.new("Part")
+	b.Name = "Bubble"
+	b.Shape = Enum.PartType.Ball
+	b.Size = Vector3.one * info.scale * 4.2
+	b.Color = Color3.fromRGB(170, 230, 255)
+	b.Material = Enum.Material.Glass
+	b.Transparency = 0.55
+	b.Reflectance = 0.3
+	b.CanCollide = false
+	b.CanQuery = false
+	b.Massless = true
+	b.CFrame = r.CFrame * CFrame.new(0, info.scale * 0.6, 0)
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = r
+	w.Part1 = b
+	w.Parent = b
+	b.Parent = m
+	bubblePart = b
+	m:SetAttribute("Bubbled", true)
+	setBehavior("Bubbled")
+	say("ooooh", 2)
+	fx("bubble")
+	clip("bubble_trap")
+	toastAll(("%s BUBBLED Baby! %ds opening"):format(player.Name, seconds), "info")
+	if plan.isBoss then
+		broadcastBoss()
+	end
+	task.delay(seconds, function()
+		if bubblePart == b then
+			say("POP!", 1)
+			popBubble()
+			if plan.isBoss then
+				broadcastBoss()
+			end
+		end
+	end)
+	return true
+end
+
+local function useGear(player: Player, rec: DataService.GearRecord, def: GearCatalog.GearDef): boolean
+	if not active or not root then
+		Net.event("Toast"):FireClient(player, "No Baby to use that on right now.", "error")
+		return false
+	end
+	if def.range > 0 and not inRange(player, def.range) then
+		Net.event("Toast"):FireClient(player, "Out of range — get closer to Baby!", "error")
+		return false
+	end
+	local power = GearCatalog.power(def, rec.tier)
+	if def.id == "PacifierCannon" then
+		if refuseNext then
+			refuseNext = false
+		end
+		say("mmmph!", 2)
+		fx("pacifier")
+		setMood(moodIndex - 1)
+		immunityUntil = os.clock() + power
+		decayTimer = 0
+		EconomyService.addCoins(player, Config.Economy.SootheReward, true)
+		BabyAI.calmHit(player)
+		broadcastMood()
+		return true
+	elseif def.id == "BubbleTrap" then
+		return bubbleTrap(player, power)
+	elseif def.id == "SoapGun" then
+		local freed = Powers.unstickAll()
+		Powers.setSlippery(power)
+		say("slippy!", 2)
+		fx("soap")
+		clip("soap_gun")
+		toastAll(
+			if freed > 0
+				then ("%s soaped Baby — %d things slid off!"):format(player.Name, freed)
+				else ("%s soaped Baby — nothing sticks for %ds"):format(player.Name, power),
+			"info"
+		)
+		return true
+	end
+	return false
 end
 
 -- While carried the Baby is welded to the carrier, so it must not collide with walls or doorframes
@@ -707,19 +997,60 @@ function BabyAI.isAtCrib(): boolean
 end
 
 -- Lifecycle --------------------------------------------------------------------------
-function BabyAI.spawn(night: number)
+local function applyVariant(m: Model)
+	local v = plan.variant
+	m:SetAttribute("Variant", v.id)
+	m:SetAttribute("VariantName", v.name)
+	m:SetAttribute("VariantRarity", v.rarity)
+	if v.tint and v.glow then
+		local hl = Instance.new("Highlight")
+		hl.Name = "VariantGlow"
+		hl.FillColor = v.tint
+		hl.FillTransparency = 0.55
+		hl.OutlineColor = v.glow
+		hl.OutlineTransparency = 0
+		hl.DepthMode = Enum.HighlightDepthMode.Occluded
+		hl.Parent = m
+		local r = m.PrimaryPart
+		if r then
+			local light = Instance.new("PointLight")
+			light.Color = v.glow
+			light.Range = 14 + info.scale * 2
+			light.Brightness = 1.6
+			light.Parent = r
+		end
+	end
+end
+
+function BabyAI.spawn(night: number, nightPlan: NightGen.Plan?)
 	BabyAI.despawn()
 	info = NightTable.get(night)
-	local m = BabyRig.build(info.scale)
+	plan = nightPlan or NightGen.plan(night, rng:NextInteger(1, 2 ^ 30))
+	local scale = info.scale * (if plan.isBoss then 1.35 else 1)
+	info.scale = scale
+	if plan.isBoss then
+		-- Bosses have a Calm Bar instead of a fuse; mood still matters but resets on each segment.
+		info.decayInterval = math.max(Config.Mood.MinDecayInterval, info.decayInterval * 1.15)
+	end
+	local m = BabyRig.build(scale)
 	local spawnPos = stationPos("BabySpawn") or Vector3.new(0, 10, 0)
-	m:PivotTo(CFrame.new(spawnPos + Vector3.new(0, info.scale * 3, 0)))
+	m:PivotTo(CFrame.new(spawnPos + Vector3.new(0, scale * 3, 0)))
+	applyVariant(m)
+	m:SetAttribute("Title", plan.title)
+	m:SetAttribute("IsBoss", plan.isBoss)
 	m.Parent = workspace
 	model = m
 	humanoid = m:FindFirstChildOfClass("Humanoid")
 	root = m.PrimaryPart
-	if humanoid then
-		humanoid.WalkSpeed = info.walkSpeed
-	end
+	powerSpeed = 1
+	panicSpeed = 1
+	dazedUntil = 0
+	bubbledUntil = 0
+	bubblePart = nil
+	applySpeed()
+	local players = math.max(1, #Players:GetPlayers())
+	bossTotal = if plan.isBoss then math.max(1, math.min(plan.bossSegments, players + 1)) else 0
+	bossSegments = bossTotal
 	moodIndex = 1
 	decayTimer = 0
 	immunityUntil = 0
@@ -739,6 +1070,45 @@ function BabyAI.activate()
 	end
 	active = true
 	immunityUntil = os.clock() + Config.Mood.OpeningGrace
+	local ids = {}
+	for _, p in plan.powers do
+		table.insert(ids, p.id)
+	end
+	GearService.beginNight(info.night, ids, plan.variant.dropMult)
+	Powers.start({
+		model = function()
+			return model
+		end,
+		root = function()
+			return root
+		end,
+		humanoid = function()
+			return humanoid
+		end,
+		scale = function()
+			return info.scale
+		end,
+		busy = busy,
+		moodIndex = function()
+			return moodIndex
+		end,
+		say = say,
+		fx = fx,
+		setBehavior = setBehavior,
+		clip = clip,
+		toastAll = toastAll,
+		knockProps = knockProps,
+		knockback = knockback,
+		playersWithin = playersWithin,
+		setDazed = setDazed,
+		setPowerSpeed = function(mult: number)
+			powerSpeed = mult
+			applySpeed()
+		end,
+		messUp = ChoreService.messUp,
+		shake = shake,
+	}, plan.powers)
+	broadcastBoss()
 	behaviorThread = task.spawn(behaviorLoop)
 	task.spawn(moodLoop)
 	task.spawn(function()
@@ -750,11 +1120,19 @@ function BabyAI.activate()
 end
 
 function BabyAI.deactivate()
+	local wasActive = active
 	active = false
 	frozen = true
 	if behaviorThread then
 		pcall(task.cancel, behaviorThread)
 		behaviorThread = nil
+	end
+	Powers.stop()
+	popBubble()
+	bubbledUntil = 0
+	dazedUntil = 0
+	if wasActive then
+		GearService.endNight()
 	end
 	stopCarry()
 	local h = humanoid
@@ -765,10 +1143,8 @@ function BabyAI.deactivate()
 end
 
 function BabyAI.setSpeedMultiplier(mult: number)
-	local h = humanoid
-	if h then
-		h.WalkSpeed = info.walkSpeed * mult
-	end
+	panicSpeed = mult
+	applySpeed()
 end
 
 function BabyAI.calmForBed()
@@ -788,6 +1164,7 @@ function BabyAI.despawn()
 end
 
 function BabyAI.start()
+	GearService.setUseHandler(useGear)
 	Net.event("UseItem").OnServerEvent:Connect(function(player, uid)
 		if not Net.allow(player, "UseItem", 3) or type(uid) ~= "string" then
 			return

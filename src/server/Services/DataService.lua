@@ -15,6 +15,13 @@ export type ItemRecord = {
 	obtained: number,
 }
 
+export type GearRecord = {
+	uid: string,
+	id: string,
+	tier: string,
+	obtained: number,
+}
+
 export type Profile = {
 	version: number,
 	coins: number,
@@ -22,6 +29,8 @@ export type Profile = {
 	highestNight: number,
 	rebirths: number,
 	inventory: { ItemRecord },
+	gear: { GearRecord },
+	loadout: { [string]: string }, -- slotIndex (as string) -> gear uid
 	nursery: { [string]: string }, -- slotIndex (as string) -> uid
 	nurserySlots: number,
 	redeemedCodes: { [string]: boolean },
@@ -30,7 +39,15 @@ export type Profile = {
 	lastDaily: number,
 	dailyStreak: number,
 	babyBook: { [string]: number }, -- firstId -> unix time
-	stats: { nightsPlayed: number, nightsFailed: number, toysUsed: number, boxesOpened: number, swallowed: number },
+	stats: {
+		nightsPlayed: number,
+		nightsFailed: number,
+		toysUsed: number,
+		boxesOpened: number,
+		swallowed: number,
+		bossesBeaten: number,
+		gearFound: number,
+	},
 	passes: { [string]: boolean },
 	luckBoostUntil: number,
 }
@@ -64,6 +81,8 @@ local function defaultProfile(): Profile
 		highestNight = 0,
 		rebirths = 0,
 		inventory = {},
+		gear = {},
+		loadout = {},
 		nursery = {},
 		nurserySlots = 6,
 		redeemedCodes = {},
@@ -72,7 +91,15 @@ local function defaultProfile(): Profile
 		lastDaily = 0,
 		dailyStreak = 0,
 		babyBook = {},
-		stats = { nightsPlayed = 0, nightsFailed = 0, toysUsed = 0, boxesOpened = 0, swallowed = 0 },
+		stats = {
+			nightsPlayed = 0,
+			nightsFailed = 0,
+			toysUsed = 0,
+			boxesOpened = 0,
+			swallowed = 0,
+			bossesBeaten = 0,
+			gearFound = 0,
+		},
 		passes = {},
 		luckBoostUntil = 0,
 	}

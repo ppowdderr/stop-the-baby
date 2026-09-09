@@ -7,11 +7,14 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Net = require(Shared:WaitForChild("Net"))
 local NightTable = require(Shared:WaitForChild("NightTable"))
+local NightGen = require(Shared:WaitForChild("NightGen"))
 local ToyCatalog = require(Shared:WaitForChild("ToyCatalog"))
+local GearCatalog = require(Shared:WaitForChild("GearCatalog"))
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 local ChoreService = require(script.Parent.ChoreService)
+local GearService = require(script.Parent.GearService)
 local BabyAI = require(script.Parent.Parent.Baby.BabyAI)
 
 export type State = "Lobby" | "Briefing" | "Night" | "Panic" | "MomCheck" | "Results" | "Failed"
@@ -24,6 +27,9 @@ local nightEndsAt = 0
 local panicEndsAt = 0
 local votes: { [Player]: boolean } = {}
 local nightDamage = 0 -- knocked props count at Mom check
+local plan: NightGen.Plan = NightGen.plan(1, 1)
+local bossWon = false
+local rng = Random.new()
 
 local function setState(newState: State, payload: { [string]: any }?)
 	state = newState
@@ -65,13 +71,20 @@ local function resetProps()
 	end
 	for _, prop in props:GetChildren() do
 		if prop:IsA("BasePart") then
+			local weld = prop:FindFirstChild("StickyWeld")
+			if weld then
+				weld:Destroy()
+			end
 			local home = prop:GetAttribute("HomeCFrame")
 			if typeof(home) == "CFrame" then
 				prop.CFrame = home
 			end
 			prop.Anchored = true
+			prop.CanCollide = true
+			prop.Massless = false
 			prop.AssemblyLinearVelocity = Vector3.zero
 			prop:SetAttribute("Knocked", false)
+			prop:SetAttribute("Stuck", false)
 		end
 	end
 end
@@ -82,6 +95,10 @@ local function fixProp(player: Player, propName: string)
 	local props = map and map:FindFirstChild("Props")
 	local prop = props and props:FindFirstChild(propName)
 	if not prop or not prop:IsA("BasePart") or not prop:GetAttribute("Knocked") then
+		return
+	end
+	if prop:GetAttribute("Stuck") then
+		Net.event("Toast"):FireClient(player, "It's stuck to Baby! Soap Gun it off first.", "error")
 		return
 	end
 	local char = player.Character
@@ -112,6 +129,10 @@ end
 local function resultsFor(success: boolean)
 	local info = NightTable.get(night)
 	local fraction = ChoreService.completionFraction()
+	if plan.isBoss then
+		local total = math.max(1, plan.bossSegments)
+		fraction = if success then 1 else (total - BabyAI.bossSegmentsLeft()) / total
+	end
 	local damagePenalty = math.min(0.3, nightDamage * 0.03)
 	local score = math.clamp(fraction - damagePenalty + (if success then 0.2 else 0), 0, 1)
 	local stars = 0
@@ -121,7 +142,11 @@ local function resultsFor(success: boolean)
 		end
 	end
 	local coins = math.floor(
-		Config.Economy.NightRewardBase * (night ^ Config.Economy.NightRewardExponent) * (if success then 1 else 0.3)
+		Config.Economy.NightRewardBase
+			* (night ^ Config.Economy.NightRewardExponent)
+			* (if success then 1 else 0.3)
+			* (if success then plan.variant.coinMult else 1)
+			* (if plan.isBoss and success then 2 else 1)
 	)
 	local common: { [string]: any } = {
 		success = success,
@@ -131,7 +156,12 @@ local function resultsFor(success: boolean)
 		damage = nightDamage,
 		special = info.special,
 		finale = success and night == Config.FinalNight,
-		reason = if success then nil elseif BabyAI.isCrying() then "crying" else "chores",
+		reason = if success then nil elseif plan.isBoss then "boss" elseif BabyAI.isCrying() then "crying" else "chores",
+		isBoss = plan.isBoss,
+		title = plan.title,
+		variant = plan.variant.id,
+		variantName = plan.variant.name,
+		variantRarity = plan.variant.rarity,
 	}
 	state = "Results"
 	for _, plr in Players:GetPlayers() do
@@ -143,7 +173,29 @@ local function resultsFor(success: boolean)
 			if success then
 				profile.highestNight = math.max(profile.highestNight, night)
 				DataService.recordFirst(profile, "night_" .. night)
+				if plan.variant.id ~= "Normal" then
+					DataService.recordFirst(profile, "variant_" .. plan.variant.id)
+				end
 				EconomyService.addStars(plr, stars)
+			end
+			-- Gear payout: bosses always drop Rare+; a first-ever night hands out the Pacifier Cannon so
+			-- the gear bar exists from night two onward.
+			local gearRec: DataService.GearRecord? = nil
+			if firstNight then
+				gearRec = GearService.grant(plr, Config.Drops.FirstNightGear, "Common", true)
+			elseif success and plan.isBoss then
+				profile.stats.bossesBeaten += 1
+				DataService.recordFirst(profile, "boss_" .. night)
+				gearRec = GearService.rollGear(plr, night, Config.Drops.BossMinTier, true)
+			end
+			if gearRec then
+				local gdef = GearCatalog.get(gearRec.id)
+				payload.gearReward = {
+					name = GearCatalog.displayName(gearRec.id, gearRec.tier),
+					emoji = if gdef then gdef.emoji else "🎁",
+					tier = gearRec.tier,
+					desc = if gdef then gdef.desc else "",
+				}
 			end
 			if success or firstNight then
 				-- Night completion roll (bonus Legendary odds by night). A player's very first
@@ -180,28 +232,55 @@ end
 
 local function runNight()
 	local info = NightTable.get(night)
+	plan = NightGen.plan(night, rng:NextInteger(1, 2 ^ 30))
+	bossWon = false
 	resetProps()
-	BabyAI.spawn(night)
-	ChoreService.setup(night)
+	BabyAI.spawn(night, plan)
+	ChoreService.setup(night, plan.choreCount, not plan.isBoss)
 	votes = {}
 
-	-- Briefing
-	setState(
-		"Briefing",
-		{ momLine = info.momLine, special = info.special, seconds = Config.BriefingTime, chores = info.choreCount }
-	)
-	cutscene("mom_leaves", { line = info.momLine })
-	task.wait(Config.BriefingTime)
+	-- Briefing: Mom's line + tonight's Baby (powers, variant, boss) so the lobby loadout choice matters.
+	local dto = NightGen.dto(plan)
+	local briefTime = Config.BriefingTime + (if plan.isBoss then 4 else 0)
+	setState("Briefing", {
+		momLine = info.momLine,
+		special = info.special,
+		seconds = briefTime,
+		chores = plan.choreCount,
+		plan = dto,
+	})
+	cutscene("mom_leaves", { line = info.momLine, plan = dto })
+	if plan.variant.rarity ~= "Common" then
+		task.delay(2, function()
+			toastAll(
+				("✨ A %s spawned! %gx drops, %gx coins!"):format(
+					plan.variant.name,
+					plan.variant.dropMult,
+					plan.variant.coinMult
+				),
+				plan.variant.rarity
+			)
+			Net.event("ClipMoment"):FireAllClients("variant_spawn")
+		end)
+	end
+	task.wait(briefTime)
 
 	-- Night
 	BabyAI.activate()
-	nightEndsAt = workspace:GetServerTimeNow() + info.duration
-	setState("Night", { endsAt = nightEndsAt, duration = info.duration })
-	if info.special then
+	nightEndsAt = workspace:GetServerTimeNow() + plan.duration
+	setState("Night", { endsAt = nightEndsAt, duration = plan.duration, plan = dto })
+	if plan.isBoss then
+		toastAll(
+			("BOSS NIGHT: %s! Calm it %d times before Mom's headlights."):format(plan.title, BabyAI.bossSegmentsLeft()),
+			"panic"
+		)
+		Net.event("ClipMoment"):FireAllClients("boss_start")
+	elseif info.special then
 		toastAll("Tonight: " .. info.special, "star")
 	end
 
 	local bedtimeAnnounced = false
+	local lastSpeedToast = 0
 	local success: boolean? = nil
 	while success == nil do
 		task.wait(0.25)
@@ -210,7 +289,24 @@ local function runNight()
 			success = false
 			break
 		end
-		if state == "Night" then
+		if plan.isBoss then
+			-- Fixed clock: crying doesn't summon Mom, it makes her drive faster.
+			if bossWon then
+				success = true
+			elseif BabyAI.isCrying() then
+				nightEndsAt -= 0.25
+				if now - lastSpeedToast > 12 then
+					lastSpeedToast = now
+					toastAll("Mom hears the crying from the car — she's speeding up!", "warn")
+				end
+				if math.floor(now * 4) % 8 == 0 then
+					setState("Night", { endsAt = nightEndsAt, duration = plan.duration, plan = dto })
+				end
+			end
+			if success == nil and now >= nightEndsAt then
+				success = bossWon
+			end
+		elseif state == "Night" then
 			if BabyAI.isCrying() and BabyAI.cryingFor() >= Config.Mood.CryToPanicSeconds then
 				panicEndsAt = now + Config.Mood.PanicSeconds
 				setState("Panic", { endsAt = panicEndsAt })
@@ -231,7 +327,7 @@ local function runNight()
 			end
 		elseif state == "Panic" then
 			if not BabyAI.isCrying() then
-				setState("Night", { endsAt = nightEndsAt, duration = info.duration })
+				setState("Night", { endsAt = nightEndsAt, duration = plan.duration, plan = dto })
 				Net.event("Panic"):FireAllClients(false, 0)
 				BabyAI.setSpeedMultiplier(1)
 				toastAll("Phew! Mom drove past... this time.", "info")
@@ -251,12 +347,16 @@ local function runNight()
 	setState("MomCheck", { damage = nightDamage, success = success })
 	if success then
 		BabyAI.calmForBed()
-		cutscene("mom_check_pass", { damage = nightDamage, night = night })
+		cutscene("mom_check_pass", { damage = nightDamage, night = night, isBoss = plan.isBoss, title = plan.title })
+		if plan.isBoss then
+			Net.event("ClipMoment"):FireAllClients("boss_beaten")
+		end
 	else
-		cutscene(
-			"mom_check_fail",
-			{ damage = nightDamage, night = night, reason = if BabyAI.isCrying() then "crying" else "chores" }
-		)
+		cutscene("mom_check_fail", {
+			damage = nightDamage,
+			night = night,
+			reason = if plan.isBoss then "boss" elseif BabyAI.isCrying() then "crying" else "chores",
+		})
 		Net.event("ClipMoment"):FireAllClients("mom_fail")
 	end
 	task.wait(Config.MomCheckTime)
@@ -314,6 +414,9 @@ function RoundService.start()
 		return BabyAI.isCalm() and BabyAI.isAtCrib()
 	end, BabyAI.setTucking)
 	BabyAI.start()
+	BabyAI.BossBeaten:Connect(function()
+		bossWon = true
+	end)
 
 	Net.event("RequestStart").OnServerEvent:Connect(function(player, requestedNight)
 		if state ~= "Lobby" or not Net.allow(player, "Start", 2) then

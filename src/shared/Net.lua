@@ -15,7 +15,14 @@ Net.Events = {
 	"Cutscene", -- (id: string, data: table)
 	"Panic", -- (active: boolean, secondsLeft: number)
 	"ClipMoment", -- (id: string)
+	"GearChanged", -- (gear: {GearDTO}, loadout: {uid})
+	"GearState", -- (charges: {[uid]: number}) per-night charges left
+	"BossState", -- (segments: number, total: number, dazed: boolean, title: string)
+	"Shake", -- (strength: number, seconds: number) camera shake for nearby players
 	-- client -> server
+	"UseGear", -- (uid: string)
+	"EquipGear", -- (slot: number, uid: string?)
+	"FuseGear", -- (gearId: string, tier: string) 3 -> 1 of the next tier
 	"UseItem", -- (uid: string)
 	"Interact", -- (targetName: string)
 	"StartChore", -- (choreId: string)
