@@ -185,14 +185,9 @@ function BabyRig.build(scale: number): Model
 	local torso = part("Torso", B.torso * scale, C.Onesie, model)
 	motor("RootJoint", root, torso, CFrame.new(), CFrame.new())
 
-	-- Onesie details: collar + two snap buttons
+	-- Onesie details: collar
 	local collar = part("Collar", Vector3.new(B.torso.X * 0.55, 0.22, B.torso.Z * 0.9) * scale, C.OnesieTrim, model)
 	weld(torso, collar, CFrame.new(0, B.torso.Y / 2 * scale - 0.11 * scale, 0.06 * scale))
-	for i, y in { 0.35, -0.05 } do
-		local btn =
-			part("Snap" .. i, Vector3.new(0.12, 0.26, 0.26) * scale, C.OnesieTrim, model, Enum.PartType.Cylinder)
-		weld(torso, btn, CFrame.new(0, y * scale, -(B.torso.Z / 2 + 0.05) * scale) * CFrame.Angles(0, math.rad(90), 0))
-	end
 
 	-- Polka-dot onesie + a duck patch on the tummy (the mascot's signature print)
 	for i, d in
@@ -216,7 +211,7 @@ function BabyRig.build(scale: number): Model
 		)
 	end
 	local patch = part("Patch", Vector3.new(0.9, 0.9, 0.08) * scale, C.OnesieTrim, model)
-	weld(torso, patch, CFrame.new(0.05 * scale, -0.45 * scale, -(B.torso.Z / 2 + 0.03) * scale))
+	weld(torso, patch, CFrame.new(0, 0.25 * scale, -(B.torso.Z / 2 + 0.03) * scale))
 	do
 		local gui = Instance.new("SurfaceGui")
 		gui.Face = Enum.NormalId.Front
@@ -312,11 +307,7 @@ function BabyRig.build(scale: number): Model
 	for _, sx in { -1, 1 } do
 		local side = if sx < 0 then "L" else "R"
 		local arm = part("Arm" .. side, B.arm * scale, C.Skin, model)
-		local sleeve = part("Sleeve" .. side, Vector3.new(B.arm.X + 0.16, 0.6, B.arm.Z + 0.16) * scale, C.Onesie, model)
-		weld(arm, sleeve, CFrame.new(0, (B.arm.Y / 2 - 0.3) * scale, 0))
-		local hand =
-			part("Hand" .. side, Vector3.new(B.hand, B.hand, B.hand) * scale, C.Skin, model, Enum.PartType.Ball)
-		weld(arm, hand, CFrame.new(0, -B.arm.Y / 2 * scale, 0))
+		-- motor first so the arm is at its rest pose before anything is welded onto it
 		motor(
 			"Shoulder" .. side,
 			torso,
@@ -324,12 +315,24 @@ function BabyRig.build(scale: number): Model
 			CFrame.new(sx * (B.torso.X / 2 + B.arm.X / 2 + 0.02) * scale, (B.torso.Y / 2 - 0.25) * scale, 0),
 			CFrame.new(0, (B.arm.Y / 2 - 0.15) * scale, 0)
 		)
+		local sleeve = part("Sleeve" .. side, Vector3.new(B.arm.X + 0.16, 0.6, B.arm.Z + 0.16) * scale, C.Onesie, model)
+		weld(arm, sleeve, CFrame.new(0, (B.arm.Y / 2 - 0.3) * scale, 0))
+		local hand =
+			part("Hand" .. side, Vector3.new(B.hand, B.hand, B.hand) * scale, C.Skin, model, Enum.PartType.Ball)
+		weld(arm, hand, CFrame.new(0, -B.arm.Y / 2 * scale, 0))
 	end
 
 	-- Legs + socks (hip pivot at top of leg)
 	for _, sx in { -1, 1 } do
 		local side = if sx < 0 then "L" else "R"
 		local leg = part("Leg" .. side, B.leg * scale, C.Skin, model)
+		motor(
+			"Hip" .. side,
+			torso,
+			leg,
+			CFrame.new(sx * (B.torso.X / 4 + 0.05) * scale, -B.torso.Y / 2 * scale, 0),
+			CFrame.new(0, (B.leg.Y / 2 - 0.1) * scale, 0)
+		)
 		-- Bootie: blue body, round toe, white sole + strap button
 		local sock = part("Sock" .. side, B.sock * scale, C.Sock, model)
 		weld(leg, sock, CFrame.new(0, -(B.leg.Y / 2 + B.sock.Y / 2 - 0.05) * scale, -0.15 * scale))
@@ -340,13 +343,6 @@ function BabyRig.build(scale: number): Model
 		weld(sock, sole, CFrame.new(0, -(B.sock.Y / 2 - 0.02) * scale, 0))
 		local strap = part("Strap" .. side, Vector3.new(B.sock.X + 0.1, 0.16, 0.3) * scale, C.SockSole, model)
 		weld(sock, strap, CFrame.new(0, (B.sock.Y / 2 - 0.05) * scale, 0.1 * scale))
-		motor(
-			"Hip" .. side,
-			torso,
-			leg,
-			CFrame.new(sx * (B.torso.X / 4 + 0.05) * scale, -B.torso.Y / 2 * scale, 0),
-			CFrame.new(0, (B.leg.Y / 2 - 0.1) * scale, 0)
-		)
 	end
 
 	local humanoid = Instance.new("Humanoid")

@@ -743,8 +743,8 @@ function MapBuilder.build(): Folder
 		Palette.WoodMid,
 		{ material = Enum.Material.Wood }
 	)
-	Furniture.attach(tvStand, "Drawer", Vector3.new(6.5, 1.6, 0.2), CFrame.new(-4, 0, -2.05), Palette.WoodLight)
-	Furniture.attach(tvStand, "Drawer", Vector3.new(6.5, 1.6, 0.2), CFrame.new(4, 0, -2.05), Palette.WoodLight)
+	Furniture.attach(tvStand, "Drawer", Vector3.new(6.5, 1.6, 0.2), CFrame.new(-4, 0, 2.05), Palette.WoodLight)
+	Furniture.attach(tvStand, "Drawer", Vector3.new(6.5, 1.6, 0.2), CFrame.new(4, 0, 2.05), Palette.WoodLight)
 	Furniture.block(
 		geo,
 		"Console",
@@ -772,12 +772,12 @@ function MapBuilder.build(): Folder
 	Furniture.picture(geo, CFrame.new(-20, 14, 38.3), Vector2.new(6, 4), Palette.Cushion, "😴 zzz", Palette.WallPeach)
 	Furniture.wallClock(geo, CFrame.new(8.55, 15, -22))
 
-	-- Living room: knockable props
+	-- Living room: knockable props (fronts are -Z local; the north-wall pieces get yaw 180 to face the couch)
 	markProp(Furniture.couch(props, CFrame.new(-25, 3, 20)))
 	markProp(Furniture.armchair(props, "Armchair", CFrame.new(-6, 2.5, 12) * CFrame.Angles(0, math.rad(-40), 0)))
 	markProp(Furniture.coffeeTable(props, CFrame.new(-25, 2.5, 6)))
-	markProp(Furniture.tv(props, CFrame.new(-25, 7.6, -36.5)))
-	markProp(Furniture.bookshelf(props, CFrame.new(-5, 7, -36)))
+	markProp(Furniture.tv(props, CFrame.new(-25, 7.6, -36.5) * CFrame.Angles(0, math.rad(180), 0)))
+	markProp(Furniture.bookshelf(props, CFrame.new(-5, 7, -36) * CFrame.Angles(0, math.rad(180), 0)))
 	markProp(Furniture.floorLamp(props, CFrame.new(-37, 5, 26)))
 	markProp(Furniture.vase(props, CFrame.new(-40, 6.1, 37.4)))
 	markProp(Furniture.plant(props, CFrame.new(6, 4, 34)))
@@ -916,8 +916,9 @@ function MapBuilder.build(): Folder
 	waypoint(wps, "Backyard", Vector3.new(-40, 2, 60))
 	waypoint(wps, "Backyard", Vector3.new(-20, 2, 68))
 
-	-- Mom's car (client Panic FX drives Headlight inside it)
-	Furniture.momCar(geo, CFrame.new(40, 3.2, 150))
+	-- Mom's car, parked at the street end of the driveway with its headlights aimed at the house
+	-- (client Panic FX drives the Headlight inside it)
+	Furniture.momCar(geo, CFrame.new(40, 3.2, 92))
 
 	map.Parent = workspace
 	return map
