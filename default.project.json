@@ -40,6 +40,40 @@
         "Brightness": 1.5,
         "OutdoorAmbient": [0.235, 0.235, 0.353],
         "Ambient": [0.275, 0.275, 0.353]
+      },
+      "Sky": {
+        "$className": "Sky",
+        "$properties": {
+          "StarCount": 4000,
+          "MoonAngularSize": 16
+        }
+      },
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.28,
+          "Offset": 0.2,
+          "Color": [0.6, 0.65, 0.85],
+          "Decay": [0.35, 0.35, 0.6],
+          "Glare": 0,
+          "Haze": 1.2
+        }
+      },
+      "Bloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.35,
+          "Size": 24,
+          "Threshold": 1.1
+        }
+      },
+      "ColorCorrection": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Saturation": 0.15,
+          "Contrast": 0.06,
+          "TintColor": [1, 0.98, 0.95]
+        }
       }
     },
     "SoundService": {

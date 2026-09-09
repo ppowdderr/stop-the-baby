@@ -9,7 +9,11 @@ BabyRig.Colors = {
 	Onesie = Color3.fromRGB(255, 232, 120),
 	OnesieTrim = Color3.fromRGB(255, 255, 255),
 	Diaper = Color3.fromRGB(250, 250, 250),
-	Sock = Color3.fromRGB(255, 255, 255),
+	DiaperTab = Color3.fromRGB(80, 170, 255),
+	Sock = Color3.fromRGB(80, 170, 255),
+	SockSole = Color3.fromRGB(255, 255, 255),
+	Dot = Color3.fromRGB(255, 255, 255),
+	Outline = Color3.fromRGB(70, 40, 40),
 	Hair = Color3.fromRGB(240, 170, 60),
 	Paci = Color3.fromRGB(80, 170, 255),
 	PaciNub = Color3.fromRGB(255, 240, 200),
@@ -25,11 +29,11 @@ BabyRig.Colors = {
 -- Base (scale 1) dimensions.
 BabyRig.Base = {
 	torso = Vector3.new(2.4, 2.0, 1.5),
-	head = Vector3.new(2.6, 2.4, 2.4),
+	head = Vector3.new(2.9, 2.6, 2.6),
 	arm = Vector3.new(0.9, 1.5, 0.9),
 	hand = 0.95,
 	leg = Vector3.new(1.0, 1.1, 1.0),
-	sock = Vector3.new(1.1, 0.5, 1.4),
+	sock = Vector3.new(1.2, 0.6, 1.5),
 	diaper = Vector3.new(2.6, 0.9, 1.7),
 }
 local B = BabyRig.Base
@@ -109,10 +113,11 @@ local function buildFace(head: BasePart)
 	-- Eyes (whites), pupils, highlights, lids
 	for _, side in { { "L", 120 }, { "R", 270 } } do
 		local s, x = side[1] :: string, side[2] :: number
-		local eye = oval(gui, "Eye" .. s, Vector2.new(96, 112), Vector2.new(x, 130), C.Eye, 2)
+		local eye = oval(gui, "Eye" .. s, Vector2.new(104, 120), Vector2.new(x, 132), C.Eye, 2)
 		eye.ClipsDescendants = true
-		local pupil = oval(eye, "Pupil", Vector2.new(46, 50), Vector2.new(48, 60), C.Pupil, 3)
-		oval(pupil, "Shine", Vector2.new(14, 14), Vector2.new(15, 14), Color3.new(1, 1, 1), 4)
+		local pupil = oval(eye, "Pupil", Vector2.new(54, 60), Vector2.new(52, 64), C.Pupil, 3)
+		oval(pupil, "Shine", Vector2.new(18, 18), Vector2.new(17, 16), Color3.new(1, 1, 1), 4)
+		oval(pupil, "Shine2", Vector2.new(8, 8), Vector2.new(38, 42), Color3.new(1, 1, 1), 4)
 		local lid = Instance.new("Frame")
 		lid.Name = "Lid"
 		lid.AnchorPoint = Vector2.new(0.5, 0)
@@ -180,17 +185,57 @@ function BabyRig.build(scale: number): Model
 	local torso = part("Torso", B.torso * scale, C.Onesie, model)
 	motor("RootJoint", root, torso, CFrame.new(), CFrame.new())
 
-	-- Onesie details: collar + two snap buttons
+	-- Onesie details: collar
 	local collar = part("Collar", Vector3.new(B.torso.X * 0.55, 0.22, B.torso.Z * 0.9) * scale, C.OnesieTrim, model)
 	weld(torso, collar, CFrame.new(0, B.torso.Y / 2 * scale - 0.11 * scale, 0.06 * scale))
-	for i, y in { 0.35, -0.05 } do
-		local btn =
-			part("Snap" .. i, Vector3.new(0.12, 0.26, 0.26) * scale, C.OnesieTrim, model, Enum.PartType.Cylinder)
-		weld(torso, btn, CFrame.new(0, y * scale, -(B.torso.Z / 2 + 0.05) * scale) * CFrame.Angles(0, math.rad(90), 0))
+
+	-- Polka-dot onesie + a duck patch on the tummy (the mascot's signature print)
+	for i, d in
+		{
+			{ -0.7, 0.55, -1 },
+			{ 0.75, 0.6, -1 },
+			{ -0.85, -0.35, -1 },
+			{ 0.85, -0.4, -1 },
+			{ -0.5, 0.2, 1 },
+			{ 0.6, -0.1, 1 },
+			{ 0.05, 0.65, 1 },
+			{ -0.1, -0.6, 1 },
+		}
+	do
+		local dot = part("Dot" .. i, Vector3.new(0.06, 0.3, 0.3) * scale, C.Dot, model, Enum.PartType.Cylinder)
+		weld(
+			torso,
+			dot,
+			CFrame.new(d[1] * scale, d[2] * scale, d[3] * (B.torso.Z / 2 + 0.02) * scale)
+				* CFrame.Angles(0, math.rad(90), 0)
+		)
+	end
+	local patch = part("Patch", Vector3.new(0.9, 0.9, 0.08) * scale, C.OnesieTrim, model)
+	weld(torso, patch, CFrame.new(0, 0.25 * scale, -(B.torso.Z / 2 + 0.03) * scale))
+	do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+		gui.CanvasSize = Vector2.new(100, 100)
+		gui.LightInfluence = 0.7
+		gui.Parent = patch
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.3, 0)
+		local t = Instance.new("TextLabel")
+		t.BackgroundColor3 = C.OnesieTrim
+		t.Size = UDim2.fromScale(1, 1)
+		t.TextScaled = true
+		t.Text = "🦆"
+		corner.Parent = t
+		t.Parent = gui
 	end
 
 	local diaper = part("Diaper", B.diaper * scale, C.Diaper, model)
 	weld(torso, diaper, CFrame.new(0, (-B.torso.Y / 2 + B.diaper.Y / 2 - 0.1) * scale, 0))
+	for _, sx in { -1, 1 } do
+		local tab = part("DiaperTab", Vector3.new(0.3, 0.35, 0.9) * scale, C.DiaperTab, model)
+		weld(diaper, tab, CFrame.new(sx * (B.diaper.X / 2 - 0.05) * scale, 0.15 * scale, -0.1 * scale))
+	end
 
 	-- Head
 	local head = part("Head", B.head * scale, C.Skin, model)
@@ -210,17 +255,36 @@ function BabyRig.build(scale: number): Model
 	glow.Parent = head
 	buildFace(head)
 
-	-- Ears
+	-- Ears + chubby 3D cheeks (the silhouette read at thumbnail size)
 	for _, sx in { -1, 1 } do
 		local ear = part(
 			if sx < 0 then "EarL" else "EarR",
-			Vector3.new(0.55, 0.7, 0.55) * scale,
+			Vector3.new(0.6, 0.75, 0.6) * scale,
 			C.Skin,
 			model,
 			Enum.PartType.Ball
 		)
 		weld(head, ear, CFrame.new(sx * (B.head.X / 2) * scale, -0.1 * scale, 0))
+		local cheek = part(
+			if sx < 0 then "CheekL" else "CheekR",
+			Vector3.new(1.05, 0.9, 0.9) * scale,
+			C.Skin,
+			model,
+			Enum.PartType.Ball
+		)
+		weld(
+			head,
+			cheek,
+			CFrame.new(
+				sx * (B.head.X / 2 - 0.2) * scale,
+				-(B.head.Y / 2 - 0.55) * scale,
+				-(B.head.Z / 2 - 0.45) * scale
+			)
+		)
 	end
+	-- Chin roll
+	local chin = part("Chin", Vector3.new(B.head.X * 0.7, 0.5, 0.9) * scale, C.Skin, model, Enum.PartType.Ball)
+	weld(head, chin, CFrame.new(0, -(B.head.Y / 2 - 0.05) * scale, -(B.head.Z / 2 - 0.6) * scale))
 
 	-- Hair: single curl (stub + ball) on top-front
 	local stub = part("HairStub", Vector3.new(0.28, 0.6, 0.28) * scale, C.Hair, model, Enum.PartType.Cylinder)
@@ -243,11 +307,7 @@ function BabyRig.build(scale: number): Model
 	for _, sx in { -1, 1 } do
 		local side = if sx < 0 then "L" else "R"
 		local arm = part("Arm" .. side, B.arm * scale, C.Skin, model)
-		local sleeve = part("Sleeve" .. side, Vector3.new(B.arm.X + 0.16, 0.6, B.arm.Z + 0.16) * scale, C.Onesie, model)
-		weld(arm, sleeve, CFrame.new(0, (B.arm.Y / 2 - 0.3) * scale, 0))
-		local hand =
-			part("Hand" .. side, Vector3.new(B.hand, B.hand, B.hand) * scale, C.Skin, model, Enum.PartType.Ball)
-		weld(arm, hand, CFrame.new(0, -B.arm.Y / 2 * scale, 0))
+		-- motor first so the arm is at its rest pose before anything is welded onto it
 		motor(
 			"Shoulder" .. side,
 			torso,
@@ -255,14 +315,17 @@ function BabyRig.build(scale: number): Model
 			CFrame.new(sx * (B.torso.X / 2 + B.arm.X / 2 + 0.02) * scale, (B.torso.Y / 2 - 0.25) * scale, 0),
 			CFrame.new(0, (B.arm.Y / 2 - 0.15) * scale, 0)
 		)
+		local sleeve = part("Sleeve" .. side, Vector3.new(B.arm.X + 0.16, 0.6, B.arm.Z + 0.16) * scale, C.Onesie, model)
+		weld(arm, sleeve, CFrame.new(0, (B.arm.Y / 2 - 0.3) * scale, 0))
+		local hand =
+			part("Hand" .. side, Vector3.new(B.hand, B.hand, B.hand) * scale, C.Skin, model, Enum.PartType.Ball)
+		weld(arm, hand, CFrame.new(0, -B.arm.Y / 2 * scale, 0))
 	end
 
 	-- Legs + socks (hip pivot at top of leg)
 	for _, sx in { -1, 1 } do
 		local side = if sx < 0 then "L" else "R"
 		local leg = part("Leg" .. side, B.leg * scale, C.Skin, model)
-		local sock = part("Sock" .. side, B.sock * scale, C.Sock, model)
-		weld(leg, sock, CFrame.new(0, -(B.leg.Y / 2 + B.sock.Y / 2 - 0.05) * scale, -0.15 * scale))
 		motor(
 			"Hip" .. side,
 			torso,
@@ -270,6 +333,16 @@ function BabyRig.build(scale: number): Model
 			CFrame.new(sx * (B.torso.X / 4 + 0.05) * scale, -B.torso.Y / 2 * scale, 0),
 			CFrame.new(0, (B.leg.Y / 2 - 0.1) * scale, 0)
 		)
+		-- Bootie: blue body, round toe, white sole + strap button
+		local sock = part("Sock" .. side, B.sock * scale, C.Sock, model)
+		weld(leg, sock, CFrame.new(0, -(B.leg.Y / 2 + B.sock.Y / 2 - 0.05) * scale, -0.15 * scale))
+		local toe =
+			part("Toe" .. side, Vector3.new(B.sock.X, B.sock.Y, B.sock.Y) * scale, C.Sock, model, Enum.PartType.Ball)
+		weld(sock, toe, CFrame.new(0, 0, -(B.sock.Z / 2 - 0.1) * scale))
+		local sole = part("Sole" .. side, Vector3.new(B.sock.X + 0.08, 0.14, B.sock.Z + 0.1) * scale, C.SockSole, model)
+		weld(sock, sole, CFrame.new(0, -(B.sock.Y / 2) * scale, 0))
+		local strap = part("Strap" .. side, Vector3.new(B.sock.X + 0.1, 0.16, 0.3) * scale, C.SockSole, model)
+		weld(sock, strap, CFrame.new(0, (B.sock.Y / 2 - 0.05) * scale, 0.1 * scale))
 	end
 
 	local humanoid = Instance.new("Humanoid")
@@ -283,6 +356,15 @@ function BabyRig.build(scale: number): Model
 	humanoid.BreakJointsOnDeath = false
 	humanoid.AutoRotate = true
 	humanoid.Parent = model
+
+	-- Cartoon outline: keeps the Baby readable against the pastel house and in clips.
+	local outline = Instance.new("Highlight")
+	outline.Name = "Outline"
+	outline.FillTransparency = 1
+	outline.OutlineColor = C.Outline
+	outline.OutlineTransparency = 0.15
+	outline.DepthMode = Enum.HighlightDepthMode.Occluded
+	outline.Parent = model
 
 	model.PrimaryPart = root
 	model:SetAttribute("Scale", scale)
