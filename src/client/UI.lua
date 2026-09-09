@@ -55,11 +55,18 @@ function UI.list(inst: GuiObject, dir: Enum.FillDirection?, pad: number?, align:
 	return l
 end
 
-function UI.frame(parent: Instance, name: string, size: UDim2, pos: UDim2, color: Color3?, transparency: number?): Frame
+function UI.frame(
+	parent: Instance,
+	name: string,
+	size: UDim2,
+	pos: UDim2?,
+	color: Color3?,
+	transparency: number?
+): Frame
 	local f = Instance.new("Frame")
 	f.Name = name
 	f.Size = size
-	f.Position = pos
+	f.Position = pos or UDim2.new()
 	f.BackgroundColor3 = color or UI.Colors.Panel
 	f.BackgroundTransparency = transparency or 0
 	f.BorderSizePixel = 0
