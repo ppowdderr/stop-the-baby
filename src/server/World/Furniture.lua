@@ -311,7 +311,13 @@ end
 
 function Furniture.bookshelf(parent: Instance, cf: CFrame): Part
 	local r = Furniture.root(parent, "Bookshelf", Vector3.new(10, 12, 3), cf)
-	Furniture.attach(r, "Frame", Vector3.new(10, 12, 3), CFrame.new(), Palette.WoodMid, WOOD)
+	-- hollow carcass: two sides, top, bottom, back
+	for _, sx in { -1, 1 } do
+		Furniture.attach(r, "Side", Vector3.new(0.3, 12, 3), CFrame.new(sx * 4.85, 0, 0), Palette.WoodMid, WOOD)
+	end
+	Furniture.attach(r, "Top", Vector3.new(10, 0.3, 3), CFrame.new(0, 5.85, 0), Palette.WoodMid, WOOD)
+	Furniture.attach(r, "Bottom", Vector3.new(10, 0.3, 3), CFrame.new(0, -5.85, 0), Palette.WoodMid, WOOD)
+	Furniture.attach(r, "Back", Vector3.new(10, 12, 0.2), CFrame.new(0, 0, 1.4), Palette.WoodMid, WOOD)
 	local rng = Random.new(7)
 	local colors = {
 		Palette.AccentToys,

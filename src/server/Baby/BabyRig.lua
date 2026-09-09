@@ -340,7 +340,7 @@ function BabyRig.build(scale: number): Model
 			part("Toe" .. side, Vector3.new(B.sock.X, B.sock.Y, B.sock.Y) * scale, C.Sock, model, Enum.PartType.Ball)
 		weld(sock, toe, CFrame.new(0, 0, -(B.sock.Z / 2 - 0.1) * scale))
 		local sole = part("Sole" .. side, Vector3.new(B.sock.X + 0.08, 0.14, B.sock.Z + 0.1) * scale, C.SockSole, model)
-		weld(sock, sole, CFrame.new(0, -(B.sock.Y / 2 - 0.02) * scale, 0))
+		weld(sock, sole, CFrame.new(0, -(B.sock.Y / 2) * scale, 0))
 		local strap = part("Strap" .. side, Vector3.new(B.sock.X + 0.1, 0.16, 0.3) * scale, C.SockSole, model)
 		weld(sock, strap, CFrame.new(0, (B.sock.Y / 2 - 0.05) * scale, 0.1 * scale))
 	end
