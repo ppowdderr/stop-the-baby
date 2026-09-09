@@ -422,6 +422,8 @@ Net.event("RoundState").OnClientEvent:Connect(function(state: string)
 	if state == "Briefing" or state == "Night" then
 		panel.Visible = false
 	end
+	-- On phones the briefing card sits where the GEAR button lives.
+	openBtn.Visible = not (UI.Touch and state == "Briefing")
 end)
 
 refreshBar()

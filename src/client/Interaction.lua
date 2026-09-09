@@ -16,7 +16,12 @@ local Interaction = {}
 local player = Players.LocalPlayer
 local screen = UI.screen("Interact", 2)
 
-local prompt = UI.frame(screen, "Prompt", UDim2.fromOffset(300, 56), UDim2.new(0.5, -150, 0.72, 0))
+local prompt = UI.frame(
+	screen,
+	"Prompt",
+	UDim2.fromOffset(300, 56),
+	if UI.Touch then UDim2.new(0.5, -150, 1, -236) else UDim2.new(0.5, -150, 0.72, 0)
+)
 prompt.Visible = false
 UI.corner(prompt, 14)
 UI.stroke(prompt, UI.Colors.Yellow, 2)
