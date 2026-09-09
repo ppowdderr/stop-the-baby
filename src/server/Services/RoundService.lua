@@ -7,6 +7,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Net = require(Shared:WaitForChild("Net"))
 local NightTable = require(Shared:WaitForChild("NightTable"))
+local ToyCatalog = require(Shared:WaitForChild("ToyCatalog"))
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
@@ -122,23 +123,7 @@ local function resultsFor(success: boolean)
 	local coins = math.floor(
 		Config.Economy.NightRewardBase * (night ^ Config.Economy.NightRewardExponent) * (if success then 1 else 0.3)
 	)
-	for _, plr in Players:GetPlayers() do
-		local profile = DataService.get(plr)
-		if profile then
-			profile.stats.nightsPlayed += 1
-			if success then
-				profile.highestNight = math.max(profile.highestNight, night)
-				DataService.recordFirst(profile, "night_" .. night)
-				EconomyService.addStars(plr, stars)
-				-- Night completion roll (bonus Legendary odds by night)
-				InventoryService.rollItem(plr, night * Config.NightRollLegendaryBonusPerNight)
-			else
-				profile.stats.nightsFailed += 1
-			end
-			EconomyService.addCoins(plr, coins, true)
-		end
-	end
-	setState("Results", {
+	local common: { [string]: any } = {
 		success = success,
 		stars = stars,
 		coins = coins,
@@ -146,7 +131,51 @@ local function resultsFor(success: boolean)
 		damage = nightDamage,
 		special = info.special,
 		finale = success and night == Config.FinalNight,
-	})
+		reason = if success then nil elseif BabyAI.isCrying() then "crying" else "chores",
+	}
+	state = "Results"
+	for _, plr in Players:GetPlayers() do
+		local payload: { [string]: any } = table.clone(common)
+		local profile = DataService.get(plr)
+		if profile then
+			local firstNight = profile.stats.nightsPlayed == 0
+			profile.stats.nightsPlayed += 1
+			if success then
+				profile.highestNight = math.max(profile.highestNight, night)
+				DataService.recordFirst(profile, "night_" .. night)
+				EconomyService.addStars(plr, stars)
+			end
+			if success or firstNight then
+				-- Night completion roll (bonus Legendary odds by night). A player's very first
+				-- night always pays out at least a Rare so the first pull lands inside 10 minutes.
+				local rec = InventoryService.rollItem(
+					plr,
+					night * Config.NightRollLegendaryBonusPerNight,
+					nil,
+					if firstNight then Config.Onboarding.FirstPullMinRarity :: any else nil
+				)
+				local def = rec and ToyCatalog.get(rec.id)
+				if rec and def then
+					payload.reward = {
+						name = ToyCatalog.displayName(rec.id, rec.mutation),
+						emoji = def.emoji,
+						rarity = def.rarity,
+						mutation = rec.mutation,
+					}
+				end
+			end
+			if not success then
+				profile.stats.nightsFailed += 1
+			end
+			EconomyService.addCoins(plr, coins, true)
+			payload.firstNight = firstNight
+			payload.nightsPlayed = profile.stats.nightsPlayed
+		end
+		payload.night = night
+		payload.state = "Results"
+		payload.serverTime = workspace:GetServerTimeNow()
+		Net.event("RoundState"):FireClient(plr, "Results", payload)
+	end
 end
 
 local function runNight()
@@ -197,8 +226,8 @@ local function runNight()
 			elseif ChoreService.isBedtimeDone() then
 				success = true
 			elseif now >= nightEndsAt then
-				-- Time's up: Mom arrives. Pass if baby calm and not crying, fail otherwise.
-				success = not BabyAI.isCrying()
+				-- Time's up: Mom arrives. Pass if Baby isn't crying and the chores are done (bedtime optional).
+				success = not BabyAI.isCrying() and ChoreService.remaining() == 0
 			end
 		elseif state == "Panic" then
 			if not BabyAI.isCrying() then
