@@ -1,0 +1,50 @@
+{
+  "name": "StopTheBaby",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      },
+      "$properties": {
+        "CharacterWalkSpeed": 18,
+        "EnableMouseLockOption": true
+      }
+    },
+    "StarterGui": {
+      "$properties": {
+        "ResetPlayerGuiOnSpawn": false
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "Gravity": 196.2
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "ClockTime": 20,
+        "Brightness": 1.5,
+        "OutdoorAmbient": [60, 60, 90],
+        "Ambient": [70, 70, 90]
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}
