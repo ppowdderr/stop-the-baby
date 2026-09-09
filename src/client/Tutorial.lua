@@ -52,7 +52,7 @@ local card = UI.frame(
 	screen,
 	"Card",
 	UDim2.fromOffset(300, 112),
-	if UI.Touch then UDim2.new(1, -312, 0, 170) else UDim2.new(1, -312, 0.5, -56)
+	if UI.Touch then UDim2.new(0, 12, 0, 240) else UDim2.new(1, -312, 1, -300)
 )
 card.Visible = false
 UI.corner(card, 16)

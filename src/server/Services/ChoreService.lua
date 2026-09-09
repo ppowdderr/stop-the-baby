@@ -101,7 +101,7 @@ function ChoreService.completionFraction(): number
 	return if total == 0 then 0 else done / total
 end
 
-function ChoreService.setup(night: number)
+function ChoreService.setup(night: number, count: number?, withBedtime: boolean?)
 	active = {}
 	order = {}
 	bedtimeUnlocked = false
@@ -111,14 +111,16 @@ function ChoreService.setup(night: number)
 		local j = rng:NextInteger(1, i)
 		pool[i], pool[j] = pool[j], pool[i]
 	end
-	for i = 1, math.min(info.choreCount, #pool) do
+	for i = 1, math.min(count or info.choreCount, #pool) do
 		local def = pool[i]
 		active[def.id] = { id = def.id, def = def, progress = 0, done = false, worker = nil, messedUp = false }
 		table.insert(order, def.id)
 	end
-	local bt = ChoreCatalog.Bedtime
-	active[bt.id] = { id = bt.id, def = bt, progress = 0, done = false, worker = nil, messedUp = false }
-	table.insert(order, bt.id)
+	if withBedtime ~= false then
+		local bt = ChoreCatalog.Bedtime
+		active[bt.id] = { id = bt.id, def = bt, progress = 0, done = false, worker = nil, messedUp = false }
+		table.insert(order, bt.id)
+	end
 	running = true
 	ChoreService.broadcast()
 end

@@ -45,6 +45,19 @@ local clipNames: { [string]: string } = {
 	fridge_raid = "🎬 CLIP THAT! (FRIDGE)",
 	baby_carry = "🎬 CLIP THAT! (LIFT)",
 	baby_mess = "🎬 CLIP THAT! (CHAOS)",
+	baby_slam = "🎬 CLIP THAT! (HIC-SLAM)",
+	baby_bonk = "🎬 CLIP THAT! (BONK)",
+	baby_stuck = "🎬 CLIP THAT! (STUCK ON BABY)",
+	junk_ball = "🎬 CLIP THAT! (JUNK BALL)",
+	baby_scream = "🎬 CLIP THAT! (SCREAM)",
+	bubble_trap = "🎬 CLIP THAT! (BUBBLED)",
+	soap_gun = "🎬 CLIP THAT! (SOAPED)",
+	boss_start = "🎬 CLIP THAT! (BOSS BABY)",
+	boss_segment = "🎬 CLIP THAT! (CALMED!)",
+	boss_beaten = "🎬 CLIP THAT! (BOSS DOWN)",
+	gear_drop = "🎬 CLIP THAT! (GEAR DROP)",
+	gear_fuse = "🎬 CLIP THAT! (FUSED)",
+	variant_spawn = "🎬 CLIP THAT! (RARE BABY)",
 }
 
 Net.event("ClipMoment").OnClientEvent:Connect(function(id: string)
@@ -104,9 +117,21 @@ handlers.mom_leaves = function(data)
 	if car then
 		task.spawn(focusCamera, CFrame.lookAt(car.Position + Vector3.new(-25, 8, -20), car.Position), 5)
 	end
-	say("MOM", data.line or "Be good.", 4)
+	say("MOM", data.line or "Be good.", 3.5)
+	local plan = data.plan
+	if plan and plan.powers and #plan.powers > 0 then
+		local names = {}
+		for _, p in plan.powers do
+			table.insert(names, string.upper(p.name))
+		end
+		if plan.isBoss then
+			say("MOM", ("Oh, and... Baby's in a MOOD. %s. Good luck."):format(plan.title or "Boss night"), 3.5)
+		else
+			say("MOM", ("Oh — Baby has %s tonight. You'll figure it out."):format(table.concat(names, " and ")), 3.5)
+		end
+	end
 	task.spawn(focusCamera, babyCF(), 3)
-	say("BABY", "hehe.", 2.5)
+	say("BABY", if plan and plan.isBoss then "hehehehe." else "hehe.", 2.5)
 	letterbox(false)
 end
 
@@ -191,11 +216,31 @@ Net.event("Panic").OnClientEvent:Connect(function(active: boolean)
 	end
 end)
 
+-- Impact shake (slams, screams, getting bowled over): strength decays over `seconds`.
+local shakeStrength = 0
+local shakeUntil = 0
+local shakeTotal = 1
+Net.event("Shake").OnClientEvent:Connect(function(strength: number, seconds: number)
+	shakeStrength = math.max(shakeStrength, strength)
+	shakeTotal = math.max(0.1, seconds)
+	shakeUntil = os.clock() + shakeTotal
+end)
+
 RunService.RenderStepped:Connect(function()
-	if panicActive and camera.CameraType == Enum.CameraType.Custom then
-		local shake = 0.25
+	if camera.CameraType ~= Enum.CameraType.Custom then
+		return
+	end
+	local shake = if panicActive then 0.25 else 0
+	if os.clock() < shakeUntil then
+		local k = (shakeUntil - os.clock()) / shakeTotal
+		shake = math.max(shake, shakeStrength * k * 0.8)
+	else
+		shakeStrength = 0
+	end
+	if shake > 0 then
 		camera.CFrame = camera.CFrame
 			* CFrame.new(math.random() * shake - shake / 2, math.random() * shake - shake / 2, 0)
+			* CFrame.Angles(0, 0, (math.random() - 0.5) * shake * 0.04)
 	end
 end)
 

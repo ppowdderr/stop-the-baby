@@ -7,6 +7,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Net = require(Shared:WaitForChild("Net"))
 local Rarity = require(Shared:WaitForChild("Rarity"))
 local Sounds = require(Shared:WaitForChild("Sounds"))
+local GearCatalog = require(Shared:WaitForChild("GearCatalog"))
 local UI = require(script.Parent.UI)
 
 local HUD = {}
@@ -36,6 +37,135 @@ local moodColors = {
 	Fussy = Color3.fromRGB(255, 150, 60),
 	Crying = UI.Colors.Red,
 }
+
+-- Tonight's powers strip (under the mood meter): lights up while the Baby is telegraphing ---------
+local powerStrip = UI.frame(screen, "Powers", UDim2.fromOffset(280, 34), UDim2.new(0.5, -140, 0, 180), nil, 1)
+UI.list(powerStrip, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Center)
+local powerChips: { [string]: TextLabel } = {}
+
+-- Client-safe mirror of NightGen.dto.
+type PowerDto = {
+	id: string,
+	level: number?,
+	name: string?,
+	emoji: string?,
+	tell: string?,
+	effect: string?,
+	counterGear: string?,
+}
+type PlanDto = {
+	night: number,
+	powers: { PowerDto }?,
+	variant: string?,
+	variantName: string?,
+	variantRarity: string?,
+	isBoss: boolean?,
+	title: string?,
+	bossSegments: number?,
+	duration: number?,
+	choreCount: number?,
+}
+type GearRewardDto = { name: string?, emoji: string?, tier: string?, desc: string? }
+
+local function setPowerStrip(plan: PlanDto?)
+	for _, c in powerChips do
+		c:Destroy()
+	end
+	powerChips = {}
+	if not plan or not plan.powers then
+		return
+	end
+	for _, p in plan.powers do
+		local chip = UI.label(
+			powerStrip,
+			p.id,
+			("%s %s%s"):format(p.emoji or "", string.upper(p.name or p.id), string.rep("+", (p.level or 1) - 1)),
+			UDim2.fromOffset(0, 30),
+			nil,
+			15
+		)
+		chip.AutomaticSize = Enum.AutomaticSize.X
+		chip.BackgroundTransparency = 0.15
+		chip.BackgroundColor3 = UI.Colors.Panel
+		UI.corner(chip, 10)
+		UI.stroke(chip)
+		UI.padding(chip, 6)
+		powerChips[p.id] = chip
+	end
+end
+
+-- The server sets Baby.Tell = <powerId> for the 1-2 s before an effect fires.
+local function watchBabyTell(model: Instance)
+	local function update()
+		local tell = (model:GetAttribute("Tell") :: string?) or ""
+		for id, chip in powerChips do
+			local on = id == tell
+			chip.BackgroundColor3 = if on then UI.Colors.Red else UI.Colors.Panel
+			if on then
+				UI.pop(chip)
+			end
+		end
+	end
+	model:GetAttributeChangedSignal("Tell"):Connect(update)
+	update()
+end
+workspace.ChildAdded:Connect(function(child)
+	if child.Name == "Baby" then
+		watchBabyTell(child)
+	end
+end)
+do
+	local baby = workspace:FindFirstChild("Baby")
+	if baby then
+		watchBabyTell(baby)
+	end
+end
+
+-- Boss Calm Bar: replaces the mood story on boss nights ----------------------------------------
+local bossPanel = UI.frame(screen, "Boss", UDim2.fromOffset(340, 74), UDim2.new(0.5, -170, 0, 222))
+bossPanel.Visible = false
+UI.corner(bossPanel, 14)
+UI.stroke(bossPanel, UI.Colors.Red, 3)
+UI.padding(bossPanel, 8)
+local bossTitle = UI.label(bossPanel, "Title", "", UDim2.new(1, 0, 0, 24), nil, 18, UI.Colors.Red)
+local bossSegRow = UI.frame(bossPanel, "Segs", UDim2.new(1, 0, 0, 16), UDim2.fromOffset(0, 28), nil, 1)
+UI.list(bossSegRow, Enum.FillDirection.Horizontal, 4, Enum.HorizontalAlignment.Center)
+local bossHint = UI.label(bossPanel, "Hint", "", UDim2.new(1, 0, 0, 16), UDim2.fromOffset(0, 46), 14, UI.Colors.Sub)
+local bossSegs: { Frame } = {}
+
+Net.event("BossState").OnClientEvent:Connect(function(left: number, total: number, dazed: boolean, title: string)
+	bossPanel.Visible = total > 0
+	bossTitle.Text = title or "BOSS BABY"
+	if #bossSegs ~= total then
+		for _, s in bossSegs do
+			s:Destroy()
+		end
+		bossSegs = {}
+		for i = 1, total do
+			local s =
+				UI.frame(bossSegRow, "Seg" .. i, UDim2.fromOffset(math.floor(300 / total), 14), nil, UI.Colors.Red)
+			UI.corner(s, 6)
+			bossSegs[i] = s
+		end
+	end
+	for i, s in bossSegs do
+		s.BackgroundColor3 = if i <= left then UI.Colors.Red else UI.Colors.Green
+	end
+	if left == 0 then
+		bossHint.Text = "😴 Baby is OUT. You did it!"
+		bossHint.TextColor3 = UI.Colors.Green
+	elseif dazed then
+		bossHint.Text = "⭐ OPENING! Shove a toy in its mouth NOW!"
+		bossHint.TextColor3 = UI.Colors.Yellow
+		UI.pop(bossPanel)
+	else
+		bossHint.Text = ("Calm it %d more time%s — wait for a slam or Bubble Trap it"):format(
+			left,
+			if left == 1 then "" else "s"
+		)
+		bossHint.TextColor3 = UI.Colors.Sub
+	end
+end)
 
 Net.event("BabyMood").OnClientEvent
 	:Connect(function(stageIndex: number, stageName: string, cryingFor: number, want: string?, immunity: number)
@@ -130,7 +260,7 @@ Net.event("ChoreList").OnClientEvent:Connect(function(chores)
 end)
 
 -- Toasts -----------------------------------------------------------------------------
-local toastHolder = UI.frame(screen, "Toasts", UDim2.fromOffset(420, 200), UDim2.new(0.5, -210, 0, 190), nil, 1)
+local toastHolder = UI.frame(screen, "Toasts", UDim2.fromOffset(420, 200), UDim2.new(0.5, -210, 0, 304), nil, 1)
 UI.list(toastHolder, nil, 4, Enum.HorizontalAlignment.Center)
 
 local toastColors: { [string]: Color3 } = {
@@ -196,8 +326,101 @@ readyBtn.MouseButton1Click:Connect(function()
 	readyBtn.Text = "WAITING..."
 end)
 
+-- Briefing card: tonight's Baby (powers -> tell -> counter), variant, boss, chores -------------
+local BRIEF_W, BRIEF_ROW = 440, 76
+local brief = UI.frame(screen, "Briefing", UDim2.fromOffset(BRIEF_W, 250), UDim2.new(0.5, 180, 0.5, -200))
+brief.Visible = false
+UI.corner(brief, 18)
+local briefStroke = UI.stroke(brief, UI.Colors.Accent, 3)
+UI.padding(brief, 12)
+local briefTitle = UI.label(brief, "Title", "TONIGHT'S BABY", UDim2.new(1, 0, 0, 30), nil, 22, UI.Colors.Yellow)
+local briefVariant = UI.label(brief, "Variant", "", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 30), 16, UI.Colors.Sub)
+local briefList = UI.frame(brief, "List", UDim2.new(1, 0, 1, -84), UDim2.fromOffset(0, 56), nil, 1)
+UI.list(briefList, Enum.FillDirection.Vertical, 6)
+local briefFoot = UI.label(brief, "Foot", "", UDim2.new(1, 0, 0, 22), UDim2.new(0, 0, 1, -22), 15, UI.Colors.Sub)
+briefFoot.TextWrapped = true
+
+local function showBriefing(plan: PlanDto?, chores: number)
+	for _, c in briefList:GetChildren() do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+	if not plan then
+		brief.Visible = false
+		return
+	end
+	local isBoss = plan.isBoss == true
+	briefTitle.Text = if isBoss then ("💀 BOSS: %s"):format(plan.title or "BOSS BABY") else "TONIGHT'S BABY"
+	briefTitle.TextColor3 = if isBoss then UI.Colors.Red else UI.Colors.Yellow
+	briefStroke.Color = if isBoss then UI.Colors.Red else UI.Colors.Accent
+	local rarity = plan.variantRarity or "Common"
+	if rarity ~= "Common" then
+		briefVariant.Text = ("✨ %s %s — rarer Baby, bigger drops"):format(
+			string.upper(rarity),
+			plan.variantName or "Baby"
+		)
+		briefVariant.TextColor3 = Rarity.Colors[rarity :: Rarity.RarityName] or UI.Colors.Sub
+	else
+		briefVariant.Text = "A regular Baby. Regular is relative."
+		briefVariant.TextColor3 = UI.Colors.Sub
+	end
+	local n = 0
+	for _, p in (plan.powers or {}) :: { PowerDto } do
+		n += 1
+		local row = UI.frame(briefList, "P" .. n, UDim2.new(1, 0, 0, BRIEF_ROW - 6), nil, UI.Colors.PanelLight)
+		row.LayoutOrder = n
+		UI.corner(row, 10)
+		UI.padding(row, 6)
+		local counter = GearCatalog.get(p.counterGear or "")
+		UI.label(
+			row,
+			"Name",
+			("%s %s%s"):format(p.emoji or "", string.upper(p.name or p.id), string.rep("+", (p.level or 1) - 1)),
+			UDim2.new(0.55, 0, 0, 20),
+			nil,
+			17
+		).TextXAlignment =
+			Enum.TextXAlignment.Left
+		local ctr = UI.label(
+			row,
+			"Counter",
+			if counter then ("Counter: %s %s"):format(counter.emoji, counter.name) else "",
+			UDim2.new(0.45, 0, 0, 20),
+			UDim2.fromScale(0.55, 0),
+			13,
+			UI.Colors.Green
+		)
+		ctr.TextXAlignment = Enum.TextXAlignment.Right
+		local tell = UI.label(
+			row,
+			"Tell",
+			("👀 %s → %s"):format(p.tell or "", p.effect or ""),
+			UDim2.new(1, 0, 0, 36),
+			UDim2.fromOffset(0, 22),
+			13,
+			UI.Colors.Sub
+		)
+		tell.TextXAlignment = Enum.TextXAlignment.Left
+		tell.TextYAlignment = Enum.TextYAlignment.Top
+		tell.TextWrapped = true
+		tell.TextTruncate = Enum.TextTruncate.AtEnd
+	end
+	local h = 110 + n * BRIEF_ROW
+	brief.Size = UDim2.fromOffset(BRIEF_W, h)
+	brief.Position = UDim2.new(0.5, 180, 0.5, -h / 2)
+	briefFoot.Text = if isBoss
+		then ("Calm Bar x%d. Mom's on a fixed clock — crying makes her drive faster."):format(plan.bossSegments or 3)
+		else ("%d chore%s tonight. Chores are the clock; the Baby is the problem."):format(
+			chores,
+			if chores == 1 then "" else "s"
+		)
+	brief.Visible = true
+	UI.pop(brief)
+end
+
 -- Results panel -------------------------------------------------------------------------
-local results = UI.frame(screen, "Results", UDim2.fromOffset(420, 330), UDim2.new(0.5, -210, 0.5, -165))
+local results = UI.frame(screen, "Results", UDim2.fromOffset(420, 410), UDim2.new(0.5, -210, 0.5, -205))
 results.Visible = false
 UI.corner(results, 18)
 UI.stroke(results, UI.Colors.Yellow, 3)
@@ -212,8 +435,36 @@ UI.corner(resToy, 14)
 local resToyStroke = UI.stroke(resToy, UI.Colors.Blue, 3)
 local resToyTag = UI.label(resToy, "Tag", "NEW TOY!", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 4), 16, UI.Colors.Sub)
 local resToyName = UI.label(resToy, "Name", "", UDim2.new(1, 0, 0, 48), UDim2.fromOffset(0, 26), 26)
-local resTip = UI.label(results, "Tip", "", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 240), 17, UI.Colors.Sub)
+-- Gear card (drops that change how you play), below the toy card
+local resGear = UI.frame(results, "Gear", UDim2.new(1, 0, 0, 78), UDim2.fromOffset(0, 240), UI.Colors.PanelLight)
+UI.corner(resGear, 14)
+local resGearStroke = UI.stroke(resGear, UI.Colors.Green, 3)
+local resGearTag =
+	UI.label(resGear, "Tag", "NEW GEAR!", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 4), 16, UI.Colors.Sub)
+local resGearName = UI.label(resGear, "Name", "", UDim2.new(1, 0, 0, 48), UDim2.fromOffset(0, 26), 26)
+local resTip = UI.label(results, "Tip", "", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 324), 17, UI.Colors.Sub)
 resTip.TextWrapped = true
+
+local function revealGear(reward: GearRewardDto?)
+	resGear.Visible = false
+	if not reward then
+		return
+	end
+	local tier = reward.tier or "Common"
+	local color = Rarity.Colors[tier :: Rarity.RarityName] or UI.Colors.Green
+	resGearStroke.Color = color
+	resGearName.TextColor3 = color
+	resGearName.Text = ("%s %s"):format(reward.emoji or "🧰", reward.name or "Gear")
+	resGearTag.Text = if reward.desc and reward.desc ~= "" then "NEW GEAR — " .. reward.desc else "NEW GEAR!"
+	resGearTag.TextTruncate = Enum.TextTruncate.AtEnd
+	task.delay(1.6, function()
+		if results.Visible then
+			resGear.Visible = true
+			UI.pop(resGear)
+			Sounds.play("DeskBell")
+		end
+	end)
+end
 
 local function revealToy(reward)
 	resToy.Visible = false
@@ -242,7 +493,7 @@ local failTips = {
 }
 
 -- Like / Favorite + group card (shown once after the first survived night) ---------------------
-local likeCard = UI.frame(screen, "LikeCard", UDim2.fromOffset(340, 120), UDim2.new(0.5, -170, 1, -230))
+local likeCard = UI.frame(screen, "LikeCard", UDim2.fromOffset(340, 120), UDim2.new(0.5, 230, 1, -230))
 likeCard.Visible = false
 UI.corner(likeCard, 16)
 UI.stroke(likeCard, UI.Colors.Accent, 3)
@@ -311,6 +562,14 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 	results.Visible = newState == "Results"
 	chorePanel.Visible = newState == "Night" or newState == "Panic"
 	moodPanel.Visible = newState ~= "Lobby" and newState ~= "Results"
+	powerStrip.Visible = moodPanel.Visible
+	if newState == "Lobby" or newState == "Results" then
+		bossPanel.Visible = false
+	end
+	if payload.plan then
+		setPowerStrip(payload.plan)
+	end
+	brief.Visible = newState == "Briefing"
 	if newState == "Lobby" then
 		lobbyNextNight = payload.nextNight or 1
 		selectedNight = lobbyNextNight
@@ -318,6 +577,8 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 		lobbyVotes.Text = ("%d/%d ready"):format(payload.votes or 0, payload.needed or 1)
 		readyBtn.Text = "READY!"
 		panic.Visible = false
+	elseif newState == "Briefing" then
+		showBriefing(payload.plan, payload.chores or 0)
 	elseif newState == "Night" then
 		endsAt = payload.endsAt or 0
 	elseif newState == "Results" then
@@ -332,10 +593,15 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 			if payload.finale then "\n🎂 NIGHT 99 — BIRTHDAY! REBIRTH UNLOCKED" else ""
 		)
 		revealToy(payload.reward)
+		revealGear(payload.gearReward)
 		if payload.success then
+			local nextNight = (payload.night or 1) + 1
 			resTip.Text = if payload.firstNight
-				then "Every night you survive = a new toy. Rarer toys calm Baby faster. Night 2: Baby gets BIGGER."
-				else ("Next: Night %d — Baby grows and learns a new trick."):format((payload.night or 1) + 1)
+				then "Every night = new loot. Gear counters Baby's powers — check the briefing and bring the right kit."
+				elseif
+					nextNight % 10 == 0
+				then ("Next: Night %d — BOSS NIGHT. Bring counters for its powers."):format(nextNight)
+				else ("Next: Night %d — Baby gets a new power soon. Gear up."):format(nextNight)
 		else
 			resTip.Text = failTips[payload.reason or ""] or failTips.chores
 		end

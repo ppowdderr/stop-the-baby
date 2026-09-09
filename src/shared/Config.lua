@@ -19,8 +19,8 @@ Config.ResultsTime = 10
 Config.Mood = {
 	Stages = { "Happy", "Grumpy", "Fussy", "Crying" },
 	BaseDecayInterval = 55, -- seconds per stage at Night 1
-	MinDecayInterval = 20,
-	DecayIntervalPerNight = 0.7, -- shrinks per night
+	MinDecayInterval = 22,
+	DecayIntervalPerNight = 1.1, -- shrinks per night (hits the floor around Night 30)
 	WantDecayMultiplier = 0.75, -- decay speed-up while an unmet want is active
 	OpeningGrace = 15, -- no mood decay for the first seconds of a night
 	CryToPanicSeconds = 20, -- crying this long summons Mom
@@ -45,12 +45,48 @@ Config.Baby = {
 	SwallowChance = 0.08, -- when a player is within reach while Fussy+
 }
 
--- Chores
+-- Chores are the clock, not the game: few, quick, and undone by the Baby.
 Config.Chores = {
-	BaseCount = 3,
-	ExtraEveryNights = 8,
-	MaxCount = 7,
+	BaseCount = 2,
+	ExtraEveryNights = 12,
+	MaxCount = 4,
 	HoldTimeRange = { min = 8, max = 20 },
+}
+
+-- Baby Powers / Gear / bosses (see PowerCatalog, GearCatalog, NightGen)
+Config.Powers = {
+	-- Nights 1-2 are scripted so every new player meets the two funniest powers first.
+	Scripted = { [1] = { "Hiccups" }, [2] = { "SugarRush" } } :: { [number]: { string } },
+	CountSteps = {
+		{ night = 1, count = 1 },
+		{ night = 5, count = 2 },
+		{ night = 15, count = 3 },
+		{ night = 30, count = 4 },
+	},
+	LevelSteps = { { night = 1, level = 1 }, { night = 12, level = 2 }, { night = 30, level = 3 } },
+	BossEvery = 10,
+	BossSegments = 3, -- Calm Bar segments (solo servers use fewer, see BabyAI)
+	BossDuration = 240, -- fixed clock: Mom's headlights arrive at the end no matter what
+	DazedSeconds = 3.5, -- opening after a slam where toys/cannon count against the Calm Bar
+	KnockbackSeconds = 1.6, -- how long a shockwave keeps you on the floor
+	StuckSeconds = { 8, 10, 12 }, -- per power level, until a stuck player wiggles free
+	MaxStuckProps = { 4, 7, 10 },
+	SugarSpeed = { 1.7, 2.1, 2.5 },
+}
+
+-- Drops (gear/coins pickups the Baby leaves behind)
+Config.Drops = {
+	PropCoinChance = 0.14, -- per smashed prop
+	PropGearChance = 0.035,
+	BurpChance = 0.45, -- per snack fed
+	BurpGearChance = 0.5, -- burp drop is gear (else coins)
+	PickupLifetime = 20,
+	CoinsRange = { min = 15, max = 45 },
+	CounterBias = 0.65, -- chance a gear drop counters one of tonight's powers
+	TierOdds = { 52, 28, 13, 5.5, 1.5 }, -- Common..Legendary (percent)
+	TierBonusPerNight = 0.25, -- shifts weight from Common toward Rare+ per night
+	BossMinTier = "Rare",
+	FirstNightGear = "PacifierCannon", -- first-ever night always pays out this piece
 }
 
 -- Economy

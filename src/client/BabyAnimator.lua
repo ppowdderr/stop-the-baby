@@ -378,6 +378,46 @@ local function bind(model: Model)
 		elseif name == "gift" then
 			Sounds.play("Squeak", head)
 			r.hearts:Emit(12)
+		-- Power tells + payoffs (see server Baby/Powers.lua)
+		elseif name == "tell_hiccup" then
+			Sounds.play("Squeak", head, 0.8)
+			TweenService:Create(face.blushL, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play()
+			TweenService:Create(face.blushR, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play()
+		elseif name == "hop" then
+			Sounds.play("SlideWhistle", head, 0.7)
+		elseif name == "slam" then
+			Sounds.play("Thud", head)
+			Sounds.play("Stomp", head)
+			for _, d in r.dust do
+				d:Emit(40)
+			end
+		elseif name == "bonk" then
+			Sounds.play("Squeak", head, 0.9)
+		elseif name == "tell_zoom" then
+			Sounds.play("Squeal", head, 0.6)
+		elseif name == "zoom" then
+			Sounds.play("Whoosh", head, 1.2)
+			Sounds.play("Squeal", head, 0.4)
+		elseif name == "stick" then
+			Sounds.play("Chew", head, 0.5)
+		elseif name == "unstick" then
+			Sounds.play("SlideWhistle", head, 0.5)
+		elseif name == "tell_loud" then
+			Sounds.play("Whine", head)
+		elseif name == "scream" then
+			Sounds.play("CryBurst", head)
+			Sounds.play("GlassBreak", head, 0.5)
+			r.tears[1]:Emit(30)
+			r.tears[2]:Emit(30)
+		elseif name == "bubble" then
+			Sounds.play("Ding", head)
+			r.hearts:Emit(10)
+		elseif name == "soap" then
+			Sounds.play("Squeak", head)
+			r.steam:Emit(30)
+		elseif name == "pacifier" then
+			Sounds.play("Squeak", head, 0.8)
+			r.hearts:Emit(8)
 		end
 	end
 
@@ -504,6 +544,36 @@ local function targetPose(r: Rig, dt: number): { [string]: CFrame }
 		local wave = math.sin(t * 12)
 		P.shL = ang(-2.9, 0, -0.5 + wave * 0.35)
 		P.shR = ang(-2.9, 0, 0.5 + wave * 0.35)
+	elseif beh == "Hiccup" then
+		local k = math.clamp(bt / 0.6, 0, 1)
+		P.shL = ang(-2.6 * k, 0, -0.6)
+		P.shR = ang(-2.6 * k, 0, 0.6)
+		P.neck = ang(-0.35 * k, 0, 0)
+		P.root = P.root * ang(-0.15 * k, 0, 0)
+	elseif beh == "Zoom" then
+		P.shL = ang(1.2, 0, -0.2)
+		P.shR = ang(1.2, 0, 0.2)
+		P.neck = ang(-0.3, 0, 0)
+		P.root = P.root * ang(0.35, 0, 0)
+	elseif beh == "Scream" then
+		local sh = math.sin(t * 30) * 0.06
+		P.shL = ang(-2.8, 0, -0.9)
+		P.shR = ang(-2.8, 0, 0.9)
+		P.neck = ang(-0.5 + sh, sh, 0)
+	elseif beh == "Dazed" then
+		local wob = math.sin(t * 2.2)
+		P.shL = ang(-0.3, 0, -0.9)
+		P.shR = ang(-0.3, 0, 0.9)
+		P.neck = ang(0.25, wob * 0.5, math.cos(t * 1.7) * 0.3)
+		P.root = CFrame.new(0, -0.35 * s, 0) * ang(0.15, 0, wob * 0.12)
+	elseif beh == "Bubbled" then
+		local fl = math.sin(t * 1.5)
+		P.shL = ang(-1.2 + fl * 0.2, 0.3, -0.9)
+		P.shR = ang(-1.2 - fl * 0.2, -0.3, 0.9)
+		P.hipL = ang(0.8 + fl * 0.2, 0, -0.3)
+		P.hipR = ang(0.8 - fl * 0.2, 0, 0.3)
+		P.neck = ang(0.1, fl * 0.3, 0)
+		P.root = CFrame.new(0, 0.6 * s + fl * 0.2 * s, 0) * ang(0, t * 0.6, 0.1)
 	end
 
 	if r.carried then
