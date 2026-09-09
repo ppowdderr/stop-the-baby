@@ -27,6 +27,8 @@ export type Profile = {
 	redeemedCodes: { [string]: boolean },
 	lastSeen: number,
 	lastGroupGift: number,
+	lastDaily: number,
+	dailyStreak: number,
 	babyBook: { [string]: number }, -- firstId -> unix time
 	stats: { nightsPlayed: number, nightsFailed: number, toysUsed: number, boxesOpened: number, swallowed: number },
 	passes: { [string]: boolean },
@@ -67,6 +69,8 @@ local function defaultProfile(): Profile
 		redeemedCodes = {},
 		lastSeen = os.time(),
 		lastGroupGift = 0,
+		lastDaily = 0,
+		dailyStreak = 0,
 		babyBook = {},
 		stats = { nightsPlayed = 0, nightsFailed = 0, toysUsed = 0, boxesOpened = 0, swallowed = 0 },
 		passes = {},

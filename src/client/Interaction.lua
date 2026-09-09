@@ -24,8 +24,10 @@ local promptText = UI.label(prompt, "Text", "", UDim2.fromScale(1, 1), nil, 22)
 
 -- Big mobile action button (bottom-right)
 local actionBtn =
-	UI.button(screen, "Action", "HOLD", UDim2.fromOffset(110, 110), UDim2.new(1, -140, 1, -260), UI.Colors.Yellow)
+	UI.button(screen, "Action", "HOLD", UDim2.fromOffset(120, 120), UDim2.new(1, -150, 1, -340), UI.Colors.Yellow)
 actionBtn.Visible = UserInputService.TouchEnabled
+local actionCorner = actionBtn:FindFirstChildOfClass("UICorner") :: UICorner
+actionCorner.CornerRadius = UDim.new(0.5, 0)
 
 type Target = { kind: "Chore", id: string, name: string, verb: string } | { kind: "Carry" } | nil
 
@@ -152,6 +154,11 @@ end, false, Enum.KeyCode.E, Enum.KeyCode.ButtonX)
 actionBtn.MouseButton1Down:Connect(startHold)
 actionBtn.MouseButton1Up:Connect(stopHold)
 actionBtn.MouseLeave:Connect(stopHold)
+actionBtn.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch then
+		stopHold()
+	end
+end)
 
 RunService.Heartbeat:Connect(function()
 	local t = findTarget()

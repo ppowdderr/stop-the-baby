@@ -1,6 +1,7 @@
 --!strict
--- Sound catalog. All ids are free "Pro Sound Effects" library assets distributed by Roblox
--- (creator ProSoundEffects, id 7462895450), usable in any experience. Swap for custom audio anytime.
+-- Sound catalog. SFX ids are free "Pro Sound Effects" library assets distributed by Roblox
+-- (creator ProSoundEffects, id 7462895450); music ids are from Roblox's licensed APM Music library
+-- (creator APMOfficial, id 7462718749). Both are usable in any experience. Swap for custom audio anytime.
 local Sounds = {}
 
 export type Def = { ids: { number }, volume: number, pitch: { number }?, looped: boolean?, maxDist: number? }
@@ -38,6 +39,14 @@ Sounds.Catalog = {
 	RecordScratch = { ids = { 9118086936, 9118088194 }, volume = 0.7 },
 	DeskBell = { ids = { 9125485591 }, volume = 0.6 },
 	MusicBox = { ids = { 9117044359 }, volume = 0.18, looped = true },
+
+	-- Music (APM). Lobby = music-box nursery rhymes, Night = quirky music-box mystery,
+	-- Panic = cartoon chase, plus win/fail stings.
+	MusicLobby = { ids = { 9040050881, 9040052680, 9047796475 }, volume = 0.22 },
+	MusicNight = { ids = { 1839911004 }, volume = 0.16, looped = true },
+	MusicPanic = { ids = { 1839336610, 1836101135 }, volume = 0.3, looped = true },
+	MusicWin = { ids = { 1836473422 }, volume = 0.5 },
+	MusicFail = { ids = { 1845298408 }, volume = 0.5 },
 } :: { [Key]: Def }
 
 local rng = Random.new()

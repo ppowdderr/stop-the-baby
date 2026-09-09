@@ -1,10 +1,12 @@
 --!strict
 -- Tiny declarative UI helpers so all UI is code (no .rbxm assets needed).
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local UI = {}
 
 UI.Font = Enum.Font.FredokaOne
+UI.Touch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 UI.Colors = {
 	Panel = Color3.fromRGB(40, 36, 60),
 	PanelLight = Color3.fromRGB(62, 56, 92),
@@ -108,12 +110,14 @@ function UI.button(parent: Instance, name: string, text: string, size: UDim2, po
 	b.Parent = parent
 	UI.corner(b, 10)
 	UI.stroke(b, Color3.new(0, 0, 0), 2)
-	b.MouseEnter:Connect(function()
-		TweenService:Create(b, TweenInfo.new(0.1), { Size = size + UDim2.fromOffset(4, 4) }):Play()
-	end)
-	b.MouseLeave:Connect(function()
-		TweenService:Create(b, TweenInfo.new(0.1), { Size = size }):Play()
-	end)
+	if not UI.Touch then
+		b.MouseEnter:Connect(function()
+			TweenService:Create(b, TweenInfo.new(0.1), { Size = size + UDim2.fromOffset(4, 4) }):Play()
+		end)
+		b.MouseLeave:Connect(function()
+			TweenService:Create(b, TweenInfo.new(0.1), { Size = size }):Play()
+		end)
+	end
 	return b
 end
 
@@ -143,6 +147,24 @@ function UI.pop(inst: GuiObject)
 		:Play()
 end
 
+-- Layouts are authored for a ~1280x720 desktop viewport; a per-screen UIScale shrinks them on
+-- phones/tablets (never below MIN_SCALE so text and tap targets stay legible).
+local REF_W, REF_H, MIN_SCALE = 1280, 720, 0.62
+
+function UI.viewportScale(): number
+	local cam = workspace.CurrentCamera
+	local v = if cam then cam.ViewportSize else Vector2.new(REF_W, REF_H)
+	return math.clamp(math.min(v.X / REF_W, v.Y / REF_H), MIN_SCALE, 1)
+end
+
+local scalers: { UIScale } = {}
+local function refreshScale()
+	local s = UI.viewportScale()
+	for _, u in scalers do
+		u.Scale = s
+	end
+end
+
 function UI.screen(name: string, order: number?): ScreenGui
 	local sg = Instance.new("ScreenGui")
 	sg.Name = name
@@ -150,8 +172,25 @@ function UI.screen(name: string, order: number?): ScreenGui
 	sg.IgnoreGuiInset = true
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.DisplayOrder = order or 0
+	local scale = Instance.new("UIScale")
+	scale.Scale = UI.viewportScale()
+	scale.Parent = sg
+	table.insert(scalers, scale)
 	sg.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 	return sg
+end
+
+do
+	local function watch(cam: Camera?)
+		if cam then
+			cam:GetPropertyChangedSignal("ViewportSize"):Connect(refreshScale)
+			refreshScale()
+		end
+	end
+	watch(workspace.CurrentCamera)
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		watch(workspace.CurrentCamera)
+	end)
 end
 
 return UI

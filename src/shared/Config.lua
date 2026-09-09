@@ -63,6 +63,7 @@ Config.Economy = {
 	OfflineCapHours = 12,
 	ToyBoxCost = 250,
 	StarThresholds = { 0.5, 0.75, 0.95 }, -- score fraction for 1/2/3 stars
+	Daily = { BaseCoins = 100, CoinsPerStreakDay = 50, MaxStreak = 7, ToyBoxEveryDays = 3 },
 }
 
 -- Rebirth

@@ -82,6 +82,27 @@ local function grantOfflineIncome(player: Player, profile: DataService.Profile)
 	end
 end
 
+-- Daily Bottle: one claim per calendar day (UTC); consecutive days grow the streak and the payout.
+local function grantDailyBottle(player: Player, profile: DataService.Profile)
+	local D = Config.Economy.Daily
+	local today = math.floor(os.time() / 86400)
+	local lastDay = math.floor(profile.lastDaily / 86400)
+	if profile.lastDaily ~= 0 and lastDay == today then
+		return
+	end
+	profile.dailyStreak = if lastDay == today - 1 then profile.dailyStreak + 1 else 1
+	profile.lastDaily = os.time()
+	local streak = math.min(profile.dailyStreak, D.MaxStreak)
+	local coins = D.BaseCoins + D.CoinsPerStreakDay * (streak - 1)
+	profile.coins += coins
+	local msg = ("🍼 Daily Bottle: +%d Diaper Coins (day %d streak)"):format(coins, profile.dailyStreak)
+	if streak % D.ToyBoxEveryDays == 0 then
+		EconomyService.PendingToyBoxes:Fire(player, 1)
+		msg ..= " + a free Toy Box!"
+	end
+	toast(player, msg, "coins")
+end
+
 local function grantGroupGift(player: Player, profile: DataService.Profile)
 	if Config.GroupId == 0 then
 		return
@@ -193,6 +214,7 @@ function EconomyService.start()
 
 	DataService.ProfileLoaded:Connect(function(player, profile)
 		grantOfflineIncome(player, profile)
+		grantDailyBottle(player, profile)
 		grantGroupGift(player, profile)
 		refreshPasses(player, profile)
 		EconomyService.Changed:Fire(player)

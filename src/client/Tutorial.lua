@@ -48,7 +48,12 @@ for _, s in STEPS do
 end
 
 local screen = UI.screen("Coach", 4)
-local card = UI.frame(screen, "Card", UDim2.fromOffset(300, 112), UDim2.new(1, -312, 0.5, -56))
+local card = UI.frame(
+	screen,
+	"Card",
+	UDim2.fromOffset(300, 112),
+	if UI.Touch then UDim2.new(1, -312, 0, 170) else UDim2.new(1, -312, 0.5, -56)
+)
 card.Visible = false
 UI.corner(card, 16)
 UI.stroke(card, UI.Colors.Blue, 3)
