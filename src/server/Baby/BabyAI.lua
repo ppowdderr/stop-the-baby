@@ -1,6 +1,7 @@
 --!strict
 -- The Baby: mood, growth, behaviors (wander/destroy/wants/fridge/swallow/escape/sleepwalk/refuse/gift), carry, soothe.
 local PathfindingService = game:GetService("PathfindingService")
+local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -544,9 +545,17 @@ function BabyAI.soothe(player: Player, stages: number, immunity: number, def: To
 	return true
 end
 
--- While carried the Baby is welded to the carrier, so its parts must not collide with walls or
--- doorframes (otherwise the pair jams in doorways or the Baby gets pinned outside a wall).
-local carryCollide: { [BasePart]: { collide: boolean, massless: boolean } } = {}
+-- While carried the Baby is welded to the carrier, so it must not collide with walls or doorframes
+-- (otherwise the pair jams in doorways or the Baby gets pinned outside a wall). The Humanoid keeps
+-- forcing CanCollide on Torso/root, so a non-colliding collision group is used instead.
+local CARRIED_GROUP = "CarriedBaby"
+if not PhysicsService:IsCollisionGroupRegistered(CARRIED_GROUP) then
+	PhysicsService:RegisterCollisionGroup(CARRIED_GROUP)
+end
+PhysicsService:CollisionGroupSetCollidable(CARRIED_GROUP, "Default", false)
+PhysicsService:CollisionGroupSetCollidable(CARRIED_GROUP, CARRIED_GROUP, false)
+
+local carryPhys: { [BasePart]: { group: string, massless: boolean } } = {}
 
 local function setCarryCollision(carried: boolean)
 	local m = model
@@ -554,22 +563,22 @@ local function setCarryCollision(carried: boolean)
 		return
 	end
 	if carried then
-		table.clear(carryCollide)
+		table.clear(carryPhys)
 		for _, p in m:GetDescendants() do
 			if p:IsA("BasePart") then
-				carryCollide[p] = { collide = p.CanCollide, massless = p.Massless }
-				p.CanCollide = false
+				carryPhys[p] = { group = p.CollisionGroup, massless = p.Massless }
+				p.CollisionGroup = CARRIED_GROUP
 				p.Massless = true
 			end
 		end
 	else
-		for p, was in carryCollide do
+		for p, was in carryPhys do
 			if p.Parent then
-				p.CanCollide = was.collide
+				p.CollisionGroup = was.group
 				p.Massless = was.massless
 			end
 		end
-		table.clear(carryCollide)
+		table.clear(carryPhys)
 	end
 end
 
