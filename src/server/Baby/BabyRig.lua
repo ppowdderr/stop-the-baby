@@ -118,7 +118,7 @@ function BabyRig.build(scale: number): Model
 
 	local cry = Instance.new("Sound")
 	cry.Name = "Cry"
-	cry.SoundId = "rbxassetid://9114375296" -- placeholder loop; swap for licensed cry SFX
+	cry.SoundId = "" -- set to a licensed cry loop before publish
 	cry.Looped = true
 	cry.Volume = 0
 	cry.RollOffMaxDistance = 250
@@ -126,7 +126,7 @@ function BabyRig.build(scale: number): Model
 
 	local giggle = Instance.new("Sound")
 	giggle.Name = "Giggle"
-	giggle.SoundId = "rbxassetid://9114375296"
+	giggle.SoundId = "" -- set to a giggle SFX before publish
 	giggle.Volume = 0.6
 	giggle.Parent = head
 
