@@ -264,7 +264,7 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 		lobbyVotes.Text = ("%d/%d ready"):format(payload.votes or 0, payload.needed or 1)
 		readyBtn.Text = "READY!"
 		panic.Visible = false
-	elseif newState == "Night" or newState == "Panic" then
+	elseif newState == "Night" then
 		endsAt = payload.endsAt or 0
 	elseif newState == "Results" then
 		local stars = payload.stars or 0

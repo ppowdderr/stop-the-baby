@@ -18,9 +18,11 @@ Config.ResultsTime = 10
 -- Mood
 Config.Mood = {
 	Stages = { "Happy", "Grumpy", "Fussy", "Crying" },
-	BaseDecayInterval = 45, -- seconds per stage at Night 1
+	BaseDecayInterval = 55, -- seconds per stage at Night 1
 	MinDecayInterval = 20,
 	DecayIntervalPerNight = 0.7, -- shrinks per night
+	WantDecayMultiplier = 0.75, -- decay speed-up while an unmet want is active
+	OpeningGrace = 15, -- no mood decay for the first seconds of a night
 	CryToPanicSeconds = 20, -- crying this long summons Mom
 	PanicSeconds = 30,
 	PanicSpeedMultiplier = 2.0,

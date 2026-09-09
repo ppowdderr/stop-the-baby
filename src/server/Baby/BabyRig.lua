@@ -171,6 +171,10 @@ function BabyRig.build(scale: number): Model
 	root.CanTouch = true
 	root.Massless = false
 	root.CastShadow = false
+	-- Every part below is placed relative to the root, so it must sit at its final rest height first
+	-- (welds/motors are inert until the model is in Workspace and would not carry the parts along).
+	local hipHeight = (B.leg.Y + B.sock.Y - 0.15) * scale
+	root.CFrame = CFrame.new(0, hipHeight + root.Size.Y / 2, 0)
 
 	-- Torso (onesie) hangs off the root via a Motor6D so the client can bob/lean the whole body.
 	local torso = part("Torso", B.torso * scale, C.Onesie, model)
@@ -197,6 +201,13 @@ function BabyRig.build(scale: number): Model
 		CFrame.new(0, B.torso.Y / 2 * scale, 0),
 		CFrame.new(0, -B.head.Y / 2 * scale + 0.08 * scale, 0)
 	)
+	local glow = Instance.new("PointLight")
+	glow.Name = "Glow"
+	glow.Brightness = 0.35
+	glow.Range = math.min(60, 5 * scale)
+	glow.Color = Color3.fromRGB(255, 235, 210)
+	glow.Shadows = false
+	glow.Parent = head
 	buildFace(head)
 
 	-- Ears
@@ -263,7 +274,7 @@ function BabyRig.build(scale: number): Model
 
 	local humanoid = Instance.new("Humanoid")
 	humanoid.RigType = Enum.HumanoidRigType.R6
-	humanoid.HipHeight = (B.leg.Y + B.sock.Y - 0.15) * scale
+	humanoid.HipHeight = hipHeight
 	humanoid.MaxHealth = 1e9
 	humanoid.Health = 1e9
 	humanoid.DisplayName = "BABY"
@@ -273,7 +284,6 @@ function BabyRig.build(scale: number): Model
 	humanoid.AutoRotate = true
 	humanoid.Parent = model
 
-	root.CFrame = CFrame.new(0, humanoid.HipHeight + root.Size.Y / 2, 0)
 	model.PrimaryPart = root
 	model:SetAttribute("Scale", scale)
 	model:SetAttribute("Mood", "Happy")

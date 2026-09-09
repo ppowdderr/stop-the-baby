@@ -491,7 +491,7 @@ local function moodLoop()
 			continue
 		end
 		decayTimer += 1
-		local interval = info.decayInterval * (if want then 0.6 else 1)
+		local interval = info.decayInterval * (if want then Config.Mood.WantDecayMultiplier else 1)
 		if decayTimer >= interval then
 			setMood(moodIndex + 1)
 		end
@@ -675,6 +675,7 @@ function BabyAI.activate()
 		return
 	end
 	active = true
+	immunityUntil = os.clock() + Config.Mood.OpeningGrace
 	behaviorThread = task.spawn(behaviorLoop)
 	task.spawn(moodLoop)
 	task.spawn(function()

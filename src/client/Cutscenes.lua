@@ -130,7 +130,7 @@ handlers.mom_check_fail = function(data)
 	if car then
 		local light = car:FindFirstChild("Headlight") :: SpotLight?
 		if light then
-			light.Brightness = 20
+			light.Brightness = 6
 		end
 		task.spawn(focusCamera, CFrame.lookAt(Vector3.new(0, 12, 55), car.Position), 3)
 		Sounds.play("DoorSlam", car)
@@ -175,7 +175,7 @@ Net.event("Panic").OnClientEvent:Connect(function(active: boolean)
 	local car = momCar()
 	local light = car and car:FindFirstChild("Headlight") :: SpotLight?
 	if light then
-		light.Brightness = if active then 30 else 0
+		light.Brightness = if active then 8 else 0
 	end
 	TweenService:Create(
 		Lighting,

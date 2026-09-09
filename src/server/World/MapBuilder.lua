@@ -141,6 +141,30 @@ function MapBuilder.build(): Folder
 	local ceiling = part(geo, "Ceiling", Vector3.new(120, 1, 80), CFrame.new(0, H + 0.5, 0), WALL)
 	ceiling.Transparency = 0.6
 	ceiling.CanCollide = false
+	for i, pos in
+		{
+			Vector3.new(-42, H - 1, -18),
+			Vector3.new(-20, H - 1, 16),
+			Vector3.new(25, H - 1, -18),
+			Vector3.new(45, H - 1, 16),
+		}
+	do
+		local lamp = part(
+			geo,
+			"CeilingLamp" .. i,
+			Vector3.new(5, 0.6, 5),
+			CFrame.new(pos),
+			Color3.fromRGB(255, 245, 205),
+			Enum.Material.Neon
+		)
+		lamp.CanCollide = false
+		local pl = Instance.new("PointLight")
+		pl.Brightness = 1.1
+		pl.Range = 48
+		pl.Color = Color3.fromRGB(255, 228, 185)
+		pl.Shadows = false
+		pl.Parent = lamp
+	end
 
 	-- Spawns
 	local spawn = Instance.new("SpawnLocation")
