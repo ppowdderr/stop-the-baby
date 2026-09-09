@@ -544,6 +544,35 @@ function BabyAI.soothe(player: Player, stages: number, immunity: number, def: To
 	return true
 end
 
+-- While carried the Baby is welded to the carrier, so its parts must not collide with walls or
+-- doorframes (otherwise the pair jams in doorways or the Baby gets pinned outside a wall).
+local carryCollide: { [BasePart]: { collide: boolean, massless: boolean } } = {}
+
+local function setCarryCollision(carried: boolean)
+	local m = model
+	if not m then
+		return
+	end
+	if carried then
+		table.clear(carryCollide)
+		for _, p in m:GetDescendants() do
+			if p:IsA("BasePart") then
+				carryCollide[p] = { collide = p.CanCollide, massless = p.Massless }
+				p.CanCollide = false
+				p.Massless = true
+			end
+		end
+	else
+		for p, was in carryCollide do
+			if p.Parent then
+				p.CanCollide = was.collide
+				p.Massless = was.massless
+			end
+		end
+		table.clear(carryCollide)
+	end
+end
+
 local function stopCarry()
 	if carryWeld then
 		carryWeld:Destroy()
@@ -551,6 +580,7 @@ local function stopCarry()
 	end
 	local prev = carriedBy
 	carriedBy = nil
+	setCarryCollision(false)
 	if prev then
 		local char = prev.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -590,7 +620,8 @@ local function updateCarry()
 			if h then
 				h.PlatformStand = true
 			end
-			r.CFrame = hrp.CFrame * CFrame.new(0, 1.5 + info.scale * 1.5, -info.scale * 2.5)
+			setCarryCollision(true)
+			r.CFrame = hrp.CFrame * CFrame.new(0, 1.5 + info.scale * 1.5, -info.scale * 1.4)
 			local w = Instance.new("WeldConstraint")
 			w.Part0 = hrp
 			w.Part1 = r
