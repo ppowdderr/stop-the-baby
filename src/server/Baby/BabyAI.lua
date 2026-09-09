@@ -53,21 +53,31 @@ local BABY_LINES = {
 	Crying = { "WAAAAAAAH", "WAAAAAH!!", "MOMMYYYY" },
 }
 
+-- Speech bubbles, FX and behavior are replicated as attributes; BabyAnimator (client) renders them.
 local function say(text: string, seconds: number?)
 	local m = model
-	local head = m and m:FindFirstChild("Head")
-	local label = head
-		and head:FindFirstChild("Speech")
-		and (head:FindFirstChild("Speech") :: BillboardGui):FindFirstChild("Text") :: TextLabel?
-	if not label then
+	if not m then
 		return
 	end
-	label.Text = text
-	task.delay(seconds or 2.5, function()
-		if label.Text == text then
-			label.Text = ""
-		end
-	end)
+	m:SetAttribute("Say", text)
+	m:SetAttribute("SayFor", seconds or 2.5)
+	m:SetAttribute("SaySeq", (m:GetAttribute("SaySeq") :: number? or 0) + 1)
+end
+
+local function fx(name: string)
+	local m = model
+	if not m then
+		return
+	end
+	m:SetAttribute("Fx", name)
+	m:SetAttribute("FxSeq", (m:GetAttribute("FxSeq") :: number? or 0) + 1)
+end
+
+local function setBehavior(name: string)
+	currentBehavior = name
+	if model then
+		model:SetAttribute("Behavior", name)
+	end
 end
 
 local function toastAll(text: string, kind: string?)
@@ -87,7 +97,6 @@ local function broadcastMood()
 	Net.event("BabyMood")
 		:FireAllClients(moodIndex, stageName(), cryingFor, want, math.max(0, immunityUntil - os.clock()))
 	if model then
-		BabyRig.setMoodFace(model, stageName())
 		model:SetAttribute("Mood", stageName())
 	end
 end
@@ -100,23 +109,13 @@ local function setMood(newIndex: number)
 	local wasCrying = moodIndex == 4
 	moodIndex = newIndex
 	decayTimer = 0
-	local m = model
-	local cry = m
-		and m:FindFirstChild("Head")
-		and (m:FindFirstChild("Head") :: BasePart):FindFirstChild("Cry") :: Sound?
 	if moodIndex == 4 and not wasCrying then
 		cryingSince = os.clock()
-		if cry then
-			cry.Volume = 1
-			cry:Play()
-		end
+		fx("tantrum")
 		clip("baby_cry")
 		BabyAI.StartedCrying:Fire()
 	elseif moodIndex < 4 and wasCrying then
 		cryingSince = nil
-		if cry then
-			cry:Stop()
-		end
 		BabyAI.StoppedCrying:Fire()
 	end
 	local lines = BABY_LINES[stageName()]
@@ -251,7 +250,7 @@ local function knockProps()
 end
 
 local function bWander()
-	currentBehavior = "Wander"
+	setBehavior("Wander")
 	local target = randomWaypoint()
 	if target then
 		moveTo(target, 12)
@@ -260,10 +259,13 @@ local function bWander()
 end
 
 local function bDestroy()
-	currentBehavior = "Destroy"
+	setBehavior("Wander")
 	local target = randomWaypoint()
 	if target and moveTo(target, 12) then
+		setBehavior("Destroy")
 		say("SMASH!")
+		fx("smash")
+		task.wait(0.45)
 		knockProps()
 		local messed = ChoreService.messUp()
 		if messed then
@@ -275,7 +277,7 @@ local function bDestroy()
 end
 
 local function bWant(kind: string)
-	currentBehavior = "Want" .. kind
+	setBehavior("Want")
 	want = kind
 	say(if kind == "Snack" then "HUNGWY!" else "TOY! TOY!", 4)
 	broadcastMood()
@@ -292,10 +294,12 @@ local function bWant(kind: string)
 end
 
 local function bFridgeRaid()
-	currentBehavior = "FridgeRaid"
+	setBehavior("Wander")
 	local fridge = stationPos("Fridge")
 	if fridge and moveTo(fridge, 20) then
+		setBehavior("Eat")
 		say("NOM NOM NOM", 4)
+		fx("chew")
 		clip("fridge_raid")
 		toastAll("Baby is eating EVERYTHING in the fridge!", "warn")
 		task.wait(4)
@@ -308,7 +312,7 @@ local function bFridgeRaid()
 end
 
 local function bSwallow()
-	currentBehavior = "Swallow"
+	setBehavior("Wander")
 	local victim, dist = nearestPlayer(6 * info.scale)
 	local r = root
 	if not victim or not r or dist > 6 * info.scale or rng:NextNumber() > Config.Baby.SwallowChance * 4 then
@@ -323,7 +327,9 @@ local function bSwallow()
 	if not hrp or not hum then
 		return
 	end
+	setBehavior("Swallow")
 	say("OM.", 3)
+	fx("swallow")
 	clip("baby_swallow")
 	toastAll(victim.Name .. " got SWALLOWED by Baby!", "warn")
 	local profile = DataService.get(victim)
@@ -344,6 +350,7 @@ local function bSwallow()
 	end
 	task.wait(5)
 	say("BURP!", 2)
+	fx("burp")
 	weld:Destroy()
 	if hum.Parent then
 		hum.PlatformStand = false
@@ -358,10 +365,11 @@ local function bSwallow()
 end
 
 local function bEscape()
-	currentBehavior = "Escape"
+	setBehavior("Escape")
 	local door = stationPos("FrontDoor")
 	if door and moveTo(door, 20) then
 		say("BYE BYE!", 3)
+		fx("squeal")
 		clip("baby_escape")
 		toastAll("BABY IS ESCAPING! Carry it back inside!", "warn")
 		local outside = stationPos("Outside")
@@ -373,9 +381,10 @@ local function bEscape()
 end
 
 local function bSleepwalk()
-	currentBehavior = "Sleepwalk"
+	setBehavior("Sleepwalk")
 	frozen = true
 	say("zzz...", 6)
+	fx("snore")
 	toastAll("Baby is sleepwalking — don't wake it!", "info")
 	local h = humanoid
 	local prev = if h then h.WalkSpeed else 8
@@ -395,12 +404,13 @@ local function bSleepwalk()
 end
 
 local function bGift()
-	currentBehavior = "Gift"
 	local plr = nearestPlayer(12 * info.scale)
 	if not plr then
 		return
 	end
+	setBehavior("Gift")
 	say("FOR YOU!", 3)
+	fx("gift")
 	local rec = InventoryService.rollItem(plr, info.night * Config.NightRollLegendaryBonusPerNight)
 	if rec then
 		local def = ToyCatalog.get(rec.id)
@@ -458,9 +468,10 @@ local function behaviorLoop()
 		end
 		local behavior = pickBehavior()
 		behavior()
+		setBehavior("Idle")
 		task.wait(rng:NextNumber(Config.Baby.DestroyInterval.min, Config.Baby.DestroyInterval.max) * 0.3)
 	end
-	currentBehavior = "Idle"
+	setBehavior("Idle")
 end
 
 local function moodLoop()
@@ -521,12 +532,7 @@ function BabyAI.soothe(player: Player, stages: number, immunity: number, def: To
 	immunityUntil = os.clock() + immunity
 	decayTimer = 0
 	EconomyService.addCoins(player, Config.Economy.SootheReward, true)
-	local giggle = model
-		and model:FindFirstChild("Head")
-		and (model:FindFirstChild("Head") :: BasePart):FindFirstChild("Giggle") :: Sound?
-	if giggle then
-		giggle:Play()
-	end
+	fx("soothe")
 	if NightTable.has(info, "Refuse") and rng:NextNumber() < 0.2 then
 		refuseNext = true
 	end
@@ -595,6 +601,7 @@ local function updateCarry()
 				model:SetAttribute("Carried", true)
 			end
 			say("WHEEE", 2)
+			fx("squeal")
 			clip("baby_carry")
 			if count > 1 then
 				toastAll(("%d babysitters are carrying Baby!"):format(count), "info")
@@ -703,7 +710,9 @@ end
 function BabyAI.calmForBed()
 	setMood(1)
 	frozen = true
+	setBehavior("Sleep")
 	say("zzz", 5)
+	fx("snore")
 end
 
 function BabyAI.despawn()

@@ -1,11 +1,13 @@
 --!strict
 -- Night counter + timer, Baby mood meter, chore list, toasts, lobby panel, results panel, panic overlay.
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Net = require(Shared:WaitForChild("Net"))
 local Rarity = require(Shared:WaitForChild("Rarity"))
+local Sounds = require(Shared:WaitForChild("Sounds"))
 local UI = require(script.Parent.UI)
 
 local HUD = {}
@@ -93,10 +95,17 @@ local function ensureRow(id: string, order: number): Frame
 	return row
 end
 
+local doneChores: { [string]: boolean } = {}
 Net.event("ChoreList").OnClientEvent:Connect(function(chores)
 	local seen = {}
 	for i, c in chores do
 		seen[c.id] = true
+		if c.done and not doneChores[c.id] then
+			Sounds.play("Ding")
+		elseif c.messedUp and doneChores[c.id] then
+			Sounds.play("SlideWhistle")
+		end
+		doneChores[c.id] = c.done == true
 		local row = ensureRow(c.id, i)
 		local name = row:FindFirstChild("Name") :: TextLabel
 		local fill = (row:FindFirstChild("Bar") :: Frame):FindFirstChild("Fill") :: Frame
@@ -111,6 +120,7 @@ Net.event("ChoreList").OnClientEvent:Connect(function(chores)
 		if not seen[id] then
 			row:Destroy()
 			choreRows[id] = nil
+			doneChores[id] = nil
 		end
 	end
 end)
@@ -137,6 +147,13 @@ function HUD.toast(text: string, kind: string?)
 	UI.corner(t, 10)
 	UI.stroke(t)
 	UI.pop(t)
+	if kind == "coins" or kind == "star" then
+		Sounds.play("Ding", nil, 0.5)
+	elseif kind == "error" or kind == "panic" then
+		Sounds.play("RecordScratch", nil, 0.6)
+	elseif kind and Rarity.Colors[kind :: any] then
+		Sounds.play("DeskBell")
+	end
 	task.delay(4, function()
 		UI.tween(t, { TextTransparency = 1, BackgroundTransparency = 1 }, 0.4).Completed:Wait()
 		t:Destroy()
@@ -210,8 +227,17 @@ Net.event("Panic").OnClientEvent:Connect(function(active: boolean, seconds: numb
 	panicEndsAt = workspace:GetServerTimeNow() + seconds
 	if active then
 		UI.pop(panicText)
+		Sounds.play("CarHorn")
+		task.delay(0.7, function()
+			if panic.Visible then
+				Sounds.play("CarHorn", nil, 0.8)
+			end
+		end)
 	end
 end)
+
+-- Lobby music -----------------------------------------------------------------------------------
+local lobbyMusic = Sounds.loop("MusicBox", SoundService)
 
 -- Round state ---------------------------------------------------------------------------------
 local endsAt = 0
@@ -225,6 +251,13 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 	chorePanel.Visible = newState == "Night" or newState == "Panic"
 	moodPanel.Visible = newState ~= "Lobby" and newState ~= "Results"
 	if newState == "Lobby" then
+		if not lobbyMusic.IsPlaying then
+			lobbyMusic:Play()
+		end
+	else
+		lobbyMusic:Stop()
+	end
+	if newState == "Lobby" then
 		lobbyNextNight = payload.nextNight or 1
 		selectedNight = lobbyNextNight
 		lobbyNight.Text = "Next: NIGHT " .. selectedNight
@@ -235,6 +268,7 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 		endsAt = payload.endsAt or 0
 	elseif newState == "Results" then
 		local stars = payload.stars or 0
+		Sounds.play(if payload.success then "DeskBell" else "DoorSlam")
 		resTitle.Text = if payload.success then "NIGHT SURVIVED! 🎉" else "MOM CAME HOME. 😬"
 		resTitle.TextColor3 = if payload.success then UI.Colors.Green else UI.Colors.Red
 		resStars.Text = string.rep("⭐", stars) .. string.rep("☆", 3 - stars)

@@ -8,6 +8,7 @@ local ContextActionService = game:GetService("ContextActionService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local ChoreCatalog = require(Shared:WaitForChild("ChoreCatalog"))
+local Sounds = require(Shared:WaitForChild("Sounds"))
 local UI = require(script.Parent.UI)
 
 local Interaction = {}
@@ -33,6 +34,14 @@ local holding = false
 local current: Target = nil
 local currentKey = ""
 local inRound = false
+local workLoop: Sound? = nil
+
+local function stopWorkLoop()
+	if workLoop then
+		workLoop:Destroy()
+		workLoop = nil
+	end
+end
 
 Net.event("ChoreList").OnClientEvent:Connect(function(list)
 	chores = {}
@@ -103,6 +112,17 @@ local function startHold()
 	holding = true
 	if current.kind == "Chore" then
 		Net.event("StartChore"):FireServer(current.id)
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			stopWorkLoop()
+			if current.id == "vacuum" then
+				local loop = Sounds.loop("Vacuum", hrp)
+				loop:Play()
+				workLoop = loop
+			elseif current.id == "dishes" then
+				Sounds.play("Dishes", hrp)
+			end
+		end
 	else
 		Net.event("CarryBaby"):FireServer(true)
 	end
@@ -114,6 +134,7 @@ local function stopHold()
 		return
 	end
 	holding = false
+	stopWorkLoop()
 	Net.event("StopChore"):FireServer()
 	Net.event("CarryBaby"):FireServer(false)
 	actionBtn.Text = "HOLD"
