@@ -15,7 +15,9 @@ persistence, Robux shop hidden, group gift hidden).
 4. **Game Settings → Security**: enable **Studio Access to API Services** — this is what turns
    on DataStores in Studio playtests (otherwise `[DataService] DataStore unavailable` is logged
    and profiles live in memory for the session).
-5. **Game Settings → Communication**: keep text chat on (TextChatService is already in place).
+5. **Chat**: in Explorer select `TextChatService` and set **ChatVersion = TextChatService** (the
+   legacy chat throws `ChatScript:116 … CoreGuiChatConnections` errors in Studio multi-client
+   tests). This is a place property Rojo can't sync — set it once in the place file and save.
 6. **Game Settings → Avatar**: leave defaults (R15 works with the carry pose).
 
 ## 2. Monetization ids → `src/shared/Config.lua`
