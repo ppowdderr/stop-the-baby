@@ -388,7 +388,9 @@ local function bind(model: Model)
 		elseif name == "slam" then
 			Sounds.play("Thud", head)
 			Sounds.play("Stomp", head)
-			r.dust:Emit(40)
+			for _, d in r.dust do
+				d:Emit(40)
+			end
 		elseif name == "bonk" then
 			Sounds.play("Squeak", head, 0.9)
 		elseif name == "tell_zoom" then
