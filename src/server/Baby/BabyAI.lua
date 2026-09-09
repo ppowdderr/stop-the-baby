@@ -1,6 +1,7 @@
 --!strict
 -- The Baby: mood, growth, behaviors (wander/destroy/wants/fridge/swallow/escape/sleepwalk/refuse/gift), carry, soothe.
 local PathfindingService = game:GetService("PathfindingService")
+local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -32,6 +33,7 @@ local decayTimer = 0
 local immunityUntil = 0
 local cryingSince: number? = nil
 local frozen = false -- e.g. sleepwalking / between rounds
+local tucking = false -- a player is holding the crib's tuck-in; Baby stays put
 local refuseNext = false
 local want: string? = nil -- "Toy" | "Snack"
 local active = false
@@ -211,7 +213,7 @@ local function moveTo(target: Vector3, timeout: number): boolean
 	local deadline = os.clock() + timeout
 	if ok and path.Status == Enum.PathStatus.Success then
 		for _, wp in path:GetWaypoints() do
-			if not active or carriedBy or frozen then
+			if not active or carriedBy or tucking or (frozen and currentBehavior ~= "Sleepwalk") then
 				return false
 			end
 			h:MoveTo(wp.Position)
@@ -464,7 +466,7 @@ end
 -- Main loops ----------------------------------------------------------------------
 local function behaviorLoop()
 	while active do
-		if carriedBy or frozen then
+		if carriedBy or frozen or tucking then
 			task.wait(0.5)
 			continue
 		end
@@ -543,6 +545,43 @@ function BabyAI.soothe(player: Player, stages: number, immunity: number, def: To
 	return true
 end
 
+-- While carried the Baby is welded to the carrier, so it must not collide with walls or doorframes
+-- (otherwise the pair jams in doorways or the Baby gets pinned outside a wall). The Humanoid keeps
+-- forcing CanCollide on Torso/root, so a non-colliding collision group is used instead.
+local CARRIED_GROUP = "CarriedBaby"
+if not PhysicsService:IsCollisionGroupRegistered(CARRIED_GROUP) then
+	PhysicsService:RegisterCollisionGroup(CARRIED_GROUP)
+end
+PhysicsService:CollisionGroupSetCollidable(CARRIED_GROUP, "Default", false)
+PhysicsService:CollisionGroupSetCollidable(CARRIED_GROUP, CARRIED_GROUP, false)
+
+local carryPhys: { [BasePart]: { group: string, massless: boolean } } = {}
+
+local function setCarryCollision(carried: boolean)
+	local m = model
+	if not m then
+		return
+	end
+	if carried then
+		table.clear(carryPhys)
+		for _, p in m:GetDescendants() do
+			if p:IsA("BasePart") then
+				carryPhys[p] = { group = p.CollisionGroup, massless = p.Massless }
+				p.CollisionGroup = CARRIED_GROUP
+				p.Massless = true
+			end
+		end
+	else
+		for p, was in carryPhys do
+			if p.Parent then
+				p.CollisionGroup = was.group
+				p.Massless = was.massless
+			end
+		end
+		table.clear(carryPhys)
+	end
+end
+
 local function stopCarry()
 	if carryWeld then
 		carryWeld:Destroy()
@@ -550,6 +589,7 @@ local function stopCarry()
 	end
 	local prev = carriedBy
 	carriedBy = nil
+	setCarryCollision(false)
 	if prev then
 		local char = prev.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -589,7 +629,8 @@ local function updateCarry()
 			if h then
 				h.PlatformStand = true
 			end
-			r.CFrame = hrp.CFrame * CFrame.new(0, 1.5 + info.scale * 1.5, -info.scale * 2.5)
+			setCarryCollision(true)
+			r.CFrame = hrp.CFrame * CFrame.new(0, 1.5 + info.scale * 1.5, -info.scale * 1.4)
 			local w = Instance.new("WeldConstraint")
 			w.Part0 = hrp
 			w.Part1 = r
@@ -641,6 +682,24 @@ function BabyAI.setCarry(player: Player, start: boolean)
 	updateCarry()
 end
 
+-- Tuck-in in progress: Baby stops wandering and yawns; releases when the hold ends.
+function BabyAI.setTucking(on: boolean)
+	if on == tucking then
+		return
+	end
+	tucking = on
+	local h, r = humanoid, root
+	if on then
+		if h and r then
+			h:MoveTo(r.Position)
+		end
+		setBehavior("Yawn")
+		say("*yawn*", 3)
+	elseif active and not frozen then
+		setBehavior("Idle")
+	end
+end
+
 function BabyAI.isAtCrib(): boolean
 	local crib = stationPos("Crib")
 	local r = root
@@ -667,6 +726,7 @@ function BabyAI.spawn(night: number)
 	cryingSince = nil
 	want = nil
 	frozen = false
+	tucking = false
 	refuseNext = false
 	table.clear(carriers)
 	carriedBy = nil

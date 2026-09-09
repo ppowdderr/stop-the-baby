@@ -7,6 +7,7 @@ pcall(function()
 end)
 
 require(script.HUD)
+require(script.Music)
 require(script.Inventory)
 require(script.Interaction)
 require(script.Cutscenes)

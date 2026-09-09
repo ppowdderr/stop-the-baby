@@ -20,7 +20,10 @@
       },
       "$properties": {
         "CharacterWalkSpeed": 18,
-        "EnableMouseLockOption": true
+        "EnableMouseLockOption": true,
+        "DevCameraOcclusionMode": "Invisicam",
+        "CameraMinZoomDistance": 6,
+        "CameraMaxZoomDistance": 34
       }
     },
     "StarterGui": {

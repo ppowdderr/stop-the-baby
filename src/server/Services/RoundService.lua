@@ -311,8 +311,8 @@ end
 
 function RoundService.start()
 	ChoreService.start(function()
-		return BabyAI.isCalm() and (BabyAI.isAtCrib() or BabyAI.isCarried())
-	end)
+		return BabyAI.isCalm() and BabyAI.isAtCrib()
+	end, BabyAI.setTucking)
 	BabyAI.start()
 
 	Net.event("RequestStart").OnServerEvent:Connect(function(player, requestedNight)

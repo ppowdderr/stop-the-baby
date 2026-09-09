@@ -24,8 +24,10 @@ local promptText = UI.label(prompt, "Text", "", UDim2.fromScale(1, 1), nil, 22)
 
 -- Big mobile action button (bottom-right)
 local actionBtn =
-	UI.button(screen, "Action", "HOLD", UDim2.fromOffset(110, 110), UDim2.new(1, -140, 1, -260), UI.Colors.Yellow)
+	UI.button(screen, "Action", "HOLD", UDim2.fromOffset(120, 120), UDim2.new(1, -150, 1, -340), UI.Colors.Yellow)
 actionBtn.Visible = UserInputService.TouchEnabled
+local actionCorner = actionBtn:FindFirstChildOfClass("UICorner") :: UICorner
+actionCorner.CornerRadius = UDim.new(0.5, 0)
 
 type Target = { kind: "Chore", id: string, name: string, verb: string } | { kind: "Carry" } | nil
 
@@ -98,7 +100,16 @@ local function findTarget(): Target
 	if babyRoot then
 		local scale = (baby :: Model):GetAttribute("Scale") or 2
 		local d = (babyRoot.Position - hrp.Position).Magnitude
-		if d <= 10 * scale + 6 and (best == nil or d < bestDist * 0.8) then
+		-- Once the Baby is parked at the crib, the bedtime chore takes priority over picking it back up.
+		local crib = stations:FindFirstChild(ChoreCatalog.Bedtime.station)
+		local babyAtCrib = crib ~= nil
+			and crib:IsA("BasePart")
+			and (crib.Position - babyRoot.Position).Magnitude <= 10 + scale * 2
+		local bedtimeTarget = best ~= nil and best.kind == "Chore" and best.id == ChoreCatalog.Bedtime.id
+		local inCarryRange = d <= 10 * scale + 6
+		local carried = (baby :: Model):GetAttribute("Carried") == true
+		local closerThanChore = best == nil or d < bestDist * 0.8
+		if inCarryRange and (carried or (closerThanChore and not (bedtimeTarget and babyAtCrib))) then
 			best = { kind = "Carry" }
 		end
 	end
@@ -152,6 +163,11 @@ end, false, Enum.KeyCode.E, Enum.KeyCode.ButtonX)
 actionBtn.MouseButton1Down:Connect(startHold)
 actionBtn.MouseButton1Up:Connect(stopHold)
 actionBtn.MouseLeave:Connect(stopHold)
+actionBtn.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch then
+		stopHold()
+	end
+end)
 
 RunService.Heartbeat:Connect(function()
 	local t = findTarget()

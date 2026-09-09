@@ -1,7 +1,6 @@
 --!strict
 -- Night counter + timer, Baby mood meter, chore list, toasts, lobby panel, results panel, panic overlay.
 local RunService = game:GetService("RunService")
-local SoundService = game:GetService("SoundService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -67,7 +66,12 @@ Net.event("BabyMood").OnClientEvent
 	end)
 
 -- Chore list ------------------------------------------------------------------------
-local chorePanel = UI.frame(screen, "Chores", UDim2.fromOffset(260, 40), UDim2.new(0, 12, 0.5, -120))
+local chorePanel = UI.frame(
+	screen,
+	"Chores",
+	UDim2.fromOffset(260, 40),
+	if UI.Touch then UDim2.new(0, 12, 0, 70) else UDim2.new(0, 12, 0.5, -120)
+)
 chorePanel.AutomaticSize = Enum.AutomaticSize.Y
 UI.corner(chorePanel, 14)
 UI.stroke(chorePanel)
@@ -296,9 +300,6 @@ Net.event("Panic").OnClientEvent:Connect(function(active: boolean, seconds: numb
 	end
 end)
 
--- Lobby music -----------------------------------------------------------------------------------
-local lobbyMusic = Sounds.loop("MusicBox", SoundService)
-
 -- Round state ---------------------------------------------------------------------------------
 local endsAt = 0
 local state = "Lobby"
@@ -310,13 +311,6 @@ Net.event("RoundState").OnClientEvent:Connect(function(newState: string, payload
 	results.Visible = newState == "Results"
 	chorePanel.Visible = newState == "Night" or newState == "Panic"
 	moodPanel.Visible = newState ~= "Lobby" and newState ~= "Results"
-	if newState == "Lobby" then
-		if not lobbyMusic.IsPlaying then
-			lobbyMusic:Play()
-		end
-	else
-		lobbyMusic:Stop()
-	end
 	if newState == "Lobby" then
 		lobbyNextNight = payload.nextNight or 1
 		selectedNight = lobbyNextNight
