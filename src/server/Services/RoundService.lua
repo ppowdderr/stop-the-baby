@@ -449,8 +449,14 @@ function RoundService.start()
 			if state == "Lobby" then
 				checkVotes()
 			else
-				Net.event("RoundState")
-					:FireClient(player, state, { night = night, endsAt = nightEndsAt, state = state })
+				Net.event("RoundState"):FireClient(player, state, {
+					night = night,
+					endsAt = nightEndsAt,
+					duration = plan.duration,
+					plan = NightGen.dto(plan),
+					state = state,
+					serverTime = workspace:GetServerTimeNow(),
+				})
 			end
 		end)
 	end)
