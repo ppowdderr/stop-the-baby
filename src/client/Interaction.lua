@@ -100,7 +100,16 @@ local function findTarget(): Target
 	if babyRoot then
 		local scale = (baby :: Model):GetAttribute("Scale") or 2
 		local d = (babyRoot.Position - hrp.Position).Magnitude
-		if d <= 10 * scale + 6 and (best == nil or d < bestDist * 0.8) then
+		-- Once the Baby is parked at the crib, the bedtime chore takes priority over picking it back up.
+		local crib = stations:FindFirstChild(ChoreCatalog.Bedtime.station)
+		local babyAtCrib = crib ~= nil
+			and crib:IsA("BasePart")
+			and (crib.Position - babyRoot.Position).Magnitude <= 10 + scale * 2
+		local bedtimeTarget = best ~= nil and best.kind == "Chore" and best.id == ChoreCatalog.Bedtime.id
+		local inCarryRange = d <= 10 * scale + 6
+		local carried = (baby :: Model):GetAttribute("Carried") == true
+		local closerThanChore = best == nil or d < bestDist * 0.8
+		if inCarryRange and (carried or (closerThanChore and not (bedtimeTarget and babyAtCrib))) then
 			best = { kind = "Carry" }
 		end
 	end

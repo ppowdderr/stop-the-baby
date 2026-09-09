@@ -155,7 +155,11 @@ function ChoreService.messUp(): string?
 	return c.def.name
 end
 
-local function tryStart(player: Player, choreId: string, canBedtime: () -> boolean)
+local function isBedtime(c: ActiveChore): boolean
+	return c.id == ChoreCatalog.Bedtime.id
+end
+
+local function tryStart(player: Player, choreId: string, canBedtime: () -> boolean, onTucking: (boolean) -> ())
 	if not running then
 		return
 	end
@@ -163,13 +167,21 @@ local function tryStart(player: Player, choreId: string, canBedtime: () -> boole
 	if not c or c.done or (c.worker and c.worker ~= player) then
 		return
 	end
-	if c.id == ChoreCatalog.Bedtime.id and (not bedtimeUnlocked or not canBedtime()) then
-		Net.event("Toast"):FireClient(player, "Not bedtime yet — and Baby must be calm!", "error")
-		return
+	if isBedtime(c) then
+		if not bedtimeUnlocked then
+			Net.event("Toast"):FireClient(player, "Finish the chores first — then it's bedtime!", "error")
+			return
+		elseif not canBedtime() then
+			Net.event("Toast"):FireClient(player, "Baby must be calm and in the crib to tuck in!", "error")
+			return
+		end
 	end
 	for _, other in active do
 		if other.worker == player then
 			other.worker = nil
+			if isBedtime(other) then
+				onTucking(false)
+			end
 		end
 	end
 	local part = stationPart(c.def.station)
@@ -177,31 +189,37 @@ local function tryStart(player: Player, choreId: string, canBedtime: () -> boole
 		return
 	end
 	c.worker = player
+	if isBedtime(c) then
+		onTucking(true)
+	end
 	ChoreService.broadcast()
 end
 
-local function stopWorking(player: Player, choreId: string?)
+local function stopWorking(player: Player, choreId: string?, onTucking: (boolean) -> ())
 	for id, c in active do
 		if c.worker == player and (choreId == nil or id == choreId) then
 			c.worker = nil
+			if isBedtime(c) then
+				onTucking(false)
+			end
 		end
 	end
 	ChoreService.broadcast()
 end
 
-function ChoreService.start(canBedtime: () -> boolean)
+function ChoreService.start(canBedtime: () -> boolean, onTucking: (boolean) -> ())
 	Net.event("StartChore").OnServerEvent:Connect(function(player, choreId)
 		if Net.allow(player, "Chore", 6) and type(choreId) == "string" then
-			tryStart(player, choreId, canBedtime)
+			tryStart(player, choreId, canBedtime, onTucking)
 		end
 	end)
 	Net.event("StopChore").OnServerEvent:Connect(function(player, choreId)
 		if Net.allow(player, "Chore", 6) then
-			stopWorking(player, if type(choreId) == "string" then choreId else nil)
+			stopWorking(player, if type(choreId) == "string" then choreId else nil, onTucking)
 		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)
-		stopWorking(player)
+		stopWorking(player, nil, onTucking)
 	end)
 
 	-- Progress tick
@@ -216,8 +234,17 @@ function ChoreService.start(canBedtime: () -> boolean)
 				local w = c.worker
 				if w and not c.done then
 					local part = stationPart(c.def.station)
-					if not w.Parent or (part and not playerNear(w, part)) then
+					local bedtimeBroken = isBedtime(c) and not canBedtime()
+					if not w.Parent or (part and not playerNear(w, part)) or bedtimeBroken then
 						c.worker = nil
+						if isBedtime(c) then
+							c.progress = 0
+							onTucking(false)
+							if bedtimeBroken and w.Parent then
+								Net.event("Toast")
+									:FireClient(w, "Baby wiggled out! Calm it down and try again.", "warn")
+							end
+						end
 						changed = true
 						continue
 					end
@@ -227,6 +254,9 @@ function ChoreService.start(canBedtime: () -> boolean)
 						c.done = true
 						c.messedUp = false
 						c.worker = nil
+						if isBedtime(c) then
+							onTucking(false)
+						end
 						EconomyService.addCoins(w, Config.Economy.ChoreReward, true)
 						ChoreService.ChoreCompleted:Fire(w, c.id)
 						if ChoreService.remaining() == 0 and not bedtimeUnlocked then

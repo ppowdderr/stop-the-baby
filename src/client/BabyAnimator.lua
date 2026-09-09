@@ -487,6 +487,11 @@ local function targetPose(r: Rig, dt: number): { [string]: CFrame }
 		P.shR = ang(-1.5, 0, 0)
 		P.neck = ang(0.45, math.sin(t * 0.8) * 0.15, 0)
 		P.root = P.root * ang(0.1, 0, math.sin(t * 1.2) * 0.08)
+	elseif beh == "Yawn" then
+		local rub = math.sin(t * 5) * 0.2
+		P.shL = ang(-2.4 + rub, 0.5, -0.4)
+		P.shR = ang(-2.4 - rub, -0.5, 0.4)
+		P.neck = ang(0.35 + math.sin(t * 1.5) * 0.1, 0, math.sin(t * 0.9) * 0.12)
 	elseif beh == "Gift" then
 		P.shL = ang(-1.4, 0.35, -0.1)
 		P.shR = ang(-1.4, -0.35, 0.1)

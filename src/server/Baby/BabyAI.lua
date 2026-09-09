@@ -32,6 +32,7 @@ local decayTimer = 0
 local immunityUntil = 0
 local cryingSince: number? = nil
 local frozen = false -- e.g. sleepwalking / between rounds
+local tucking = false -- a player is holding the crib's tuck-in; Baby stays put
 local refuseNext = false
 local want: string? = nil -- "Toy" | "Snack"
 local active = false
@@ -211,7 +212,7 @@ local function moveTo(target: Vector3, timeout: number): boolean
 	local deadline = os.clock() + timeout
 	if ok and path.Status == Enum.PathStatus.Success then
 		for _, wp in path:GetWaypoints() do
-			if not active or carriedBy or frozen then
+			if not active or carriedBy or tucking or (frozen and currentBehavior ~= "Sleepwalk") then
 				return false
 			end
 			h:MoveTo(wp.Position)
@@ -464,7 +465,7 @@ end
 -- Main loops ----------------------------------------------------------------------
 local function behaviorLoop()
 	while active do
-		if carriedBy or frozen then
+		if carriedBy or frozen or tucking then
 			task.wait(0.5)
 			continue
 		end
@@ -641,6 +642,24 @@ function BabyAI.setCarry(player: Player, start: boolean)
 	updateCarry()
 end
 
+-- Tuck-in in progress: Baby stops wandering and yawns; releases when the hold ends.
+function BabyAI.setTucking(on: boolean)
+	if on == tucking then
+		return
+	end
+	tucking = on
+	local h, r = humanoid, root
+	if on then
+		if h and r then
+			h:MoveTo(r.Position)
+		end
+		setBehavior("Yawn")
+		say("*yawn*", 3)
+	elseif active and not frozen then
+		setBehavior("Idle")
+	end
+end
+
 function BabyAI.isAtCrib(): boolean
 	local crib = stationPos("Crib")
 	local r = root
@@ -667,6 +686,7 @@ function BabyAI.spawn(night: number)
 	cryingSince = nil
 	want = nil
 	frozen = false
+	tucking = false
 	refuseNext = false
 	table.clear(carriers)
 	carriedBy = nil
