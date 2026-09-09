@@ -260,7 +260,7 @@ Net.event("ChoreList").OnClientEvent:Connect(function(chores)
 end)
 
 -- Toasts -----------------------------------------------------------------------------
-local toastHolder = UI.frame(screen, "Toasts", UDim2.fromOffset(420, 200), UDim2.new(0.5, -210, 0, 190), nil, 1)
+local toastHolder = UI.frame(screen, "Toasts", UDim2.fromOffset(420, 200), UDim2.new(0.5, -210, 0, 304), nil, 1)
 UI.list(toastHolder, nil, 4, Enum.HorizontalAlignment.Center)
 
 local toastColors: { [string]: Color3 } = {
