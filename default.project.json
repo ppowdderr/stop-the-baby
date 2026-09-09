@@ -42,6 +42,11 @@
         "Ambient": [0.275, 0.275, 0.353]
       }
     },
+    "TextChatService": {
+      "$properties": {
+        "ChatVersion": "TextChatService"
+      }
+    },
     "SoundService": {
       "$properties": {
         "RespectFilteringEnabled": true
