@@ -183,10 +183,11 @@ local function resultsFor(success: boolean)
 			local gearRec: DataService.GearRecord? = nil
 			if firstNight then
 				gearRec = GearService.grant(plr, Config.Drops.FirstNightGear, "Common", true)
-			elseif success and plan.isBoss then
+			end
+			if success and plan.isBoss then
 				profile.stats.bossesBeaten += 1
 				DataService.recordFirst(profile, "boss_" .. night)
-				gearRec = GearService.rollGear(plr, night, Config.Drops.BossMinTier, true)
+				gearRec = GearService.rollGear(plr, night, Config.Drops.BossMinTier, true) or gearRec
 			end
 			if gearRec then
 				local gdef = GearCatalog.get(gearRec.id)
