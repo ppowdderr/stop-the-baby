@@ -41,7 +41,15 @@ local DataService = {}
 DataService.ProfileLoaded = Signal.new() :: Signal.Signal<Player, Profile>
 DataService.ProfileReleased = Signal.new() :: Signal.Signal<Player, Profile>
 
-local store = DataStoreService:GetDataStore(DATASTORE_NAME)
+local store: DataStore? = nil
+do
+	local ok, res = pcall(DataStoreService.GetDataStore, DataStoreService, DATASTORE_NAME)
+	if ok then
+		store = res
+	else
+		warn("[DataService] DataStore unavailable, running without persistence:", res)
+	end
+end
 local profiles: { [Player]: Profile } = {}
 local locked: { [Player]: boolean } = {}
 local sessionId = game.JobId ~= "" and game.JobId or ("studio-" .. tostring(math.random(1, 1e9)))
@@ -100,11 +108,15 @@ end
 
 -- Attempts to acquire a lock and load. Returns profile or nil (kick) on failure.
 local function load(player: Player): Profile?
+	local ds = store
+	if not ds then
+		return nil
+	end
 	local userId = player.UserId
 	local result: Profile? = nil
 	local lockedByOther = false
 	local ok = retry(3, function()
-		store:UpdateAsync(key(userId), function(old)
+		ds:UpdateAsync(key(userId), function(old)
 			old = old or {}
 			local lock = old.lock
 			if lock and lock.session ~= sessionId and (os.time() - (lock.time or 0)) < LOCK_TTL then
@@ -127,14 +139,15 @@ local function load(player: Player): Profile?
 end
 
 local function save(player: Player, release: boolean)
+	local ds = store
 	local profile = profiles[player]
-	if not profile or not locked[player] then
+	if not ds or not profile or not locked[player] then
 		return
 	end
 	profile.lastSeen = os.time()
 	local snapshot = table.clone(profile)
 	retry(3, function()
-		store:UpdateAsync(key(player.UserId), function(old)
+		ds:UpdateAsync(key(player.UserId), function(old)
 			old = old or {}
 			local lock = old.lock
 			if lock and lock.session ~= sessionId and (os.time() - (lock.time or 0)) < LOCK_TTL then

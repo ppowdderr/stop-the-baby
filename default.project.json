@@ -35,10 +35,11 @@
     },
     "Lighting": {
       "$properties": {
+        "Technology": "ShadowMap",
         "ClockTime": 20,
         "Brightness": 1.5,
-        "OutdoorAmbient": [60, 60, 90],
-        "Ambient": [70, 70, 90]
+        "OutdoorAmbient": [0.235, 0.235, 0.353],
+        "Ambient": [0.275, 0.275, 0.353]
       }
     },
     "SoundService": {
