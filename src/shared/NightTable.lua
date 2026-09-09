@@ -23,6 +23,7 @@ local behaviorUnlocks: { { night: number, id: string } } = {
 	{ night = 1, id = "WantToy" },
 	{ night = 2, id = "WantSnack" },
 	{ night = 3, id = "FridgeRaid" },
+	{ night = 4, id = "Tantrum" },
 	{ night = 5, id = "Swallow" },
 	{ night = 8, id = "StairClimb" },
 	{ night = 12, id = "Escape" },

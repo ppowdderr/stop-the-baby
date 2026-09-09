@@ -286,9 +286,11 @@ local function bWant(kind: string)
 		task.wait(1)
 	end
 	if want then
-		-- ignored → faster decay
 		want = nil
-		setMood(moodIndex + 1)
+		if NightTable.has(info, "Tantrum") then
+			say("HMPH!", 2)
+			setMood(moodIndex + 1)
+		end
 		broadcastMood()
 	end
 end
@@ -476,11 +478,11 @@ end
 
 local function moodLoop()
 	while active do
-		task.wait(1)
+		local dt = task.wait(1)
 		if frozen or carriedBy then
 			-- carrying calms slightly over time
 			if carriedBy then
-				decayTimer -= 0.5
+				decayTimer -= 0.5 * dt
 				if decayTimer < -20 and moodIndex > 1 then
 					setMood(moodIndex - 1)
 				end
@@ -488,9 +490,10 @@ local function moodLoop()
 			continue
 		end
 		if os.clock() < immunityUntil then
+			broadcastMood()
 			continue
 		end
-		decayTimer += 1
+		decayTimer += dt
 		local interval = info.decayInterval * (if want then Config.Mood.WantDecayMultiplier else 1)
 		if decayTimer >= interval then
 			setMood(moodIndex + 1)
