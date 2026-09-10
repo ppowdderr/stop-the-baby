@@ -15,10 +15,34 @@ persistence, Robux shop hidden, group gift hidden).
 4. **Game Settings → Security**: enable **Studio Access to API Services** — this is what turns
    on DataStores in Studio playtests (otherwise `[DataService] DataStore unavailable` is logged
    and profiles live in memory for the session).
-5. **Chat**: in Explorer select `TextChatService` and set **ChatVersion = TextChatService** (the
-   legacy chat throws `ChatScript:116 … CoreGuiChatConnections` errors in Studio multi-client
-   tests). This is a place property Rojo can't sync — set it once in the place file and save.
+5. **Chat**: `TextChatService.ChatVersion = TextChatService` is set by `default.project.json`, so
+   every `rojo build` carries it (the legacy chat throws `ChatScript:116 … CoreGuiChatConnections`
+   errors in Studio multi-client tests). Rojo live-sync may fail to apply it to an already-open
+   place; rebuild instead.
 6. **Game Settings → Avatar**: leave defaults (R15 works with the carry pose).
+
+## 1b. Pushing builds without Studio (Open Cloud)
+
+Collaborator/Team Create access requires a Roblox age check per account, so CI-style publishing
+uses an Open Cloud API key instead. Owner: Creator Hub → **Open Cloud → API Keys → Create**, add
+API system **universe-places** with scope `universe-places:write`, select the experience, allow
+the publisher's IP (or `0.0.0.0/0`), save. Never commit the key.
+
+```sh
+rojo build default.project.json -o StopTheBaby.rbxl
+curl -X POST "https://apis.roblox.com/universes/v1/$UNIVERSE_ID/places/$PLACE_ID/versions?versionType=Published" \
+  -H "x-api-key: $ROBLOX_OPEN_CLOUD_KEY" -H "Content-Type: application/octet-stream" \
+  --data-binary @StopTheBaby.rbxl
+# → {"versionNumber": N}
+```
+
+- `UNIVERSE_ID` from `https://apis.roblox.com/universes/v1/places/$PLACE_ID/universe`; `PLACE_ID`
+  is the number in the experience URL.
+- `409 Conflict / "Server is busy"` means the place is open in Studio (Team Create lock) — close it
+  and retry. Use `versionType=Saved` to upload without publishing.
+- Max players, API access, devices and monetization are **not** in the place file; the owner sets
+  them in Creator Hub (steps 2–4 above).
+- Current beta target: place `99265860152296`, universe `10765878520`.
 
 ## 2. Monetization ids → `src/shared/Config.lua`
 

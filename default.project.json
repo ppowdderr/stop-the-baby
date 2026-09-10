@@ -83,6 +83,11 @@
       "$properties": {
         "RespectFilteringEnabled": true
       }
+    },
+    "TextChatService": {
+      "$properties": {
+        "ChatVersion": "TextChatService"
+      }
     }
   }
 }
